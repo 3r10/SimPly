@@ -57,7 +57,7 @@ def p_integer_expr_group(p):
   p[0] = ASTIntegerGroup(p[2])
 
 def p_integer_expr_constant(p):
-  'integer_expr : INTEGER'
+  'integer_expr : INTEGER_CONST'
   p[0] = ASTIntegerConstant(p[1])
 
 def p_integer_expr_value(p):

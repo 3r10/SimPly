@@ -13,7 +13,7 @@ tokens = [
   'PLUS','MINUS','TIMES','DIVIDE','MODULO',
   'LT','GT','LE','GE','EQ','NE',
   'LPAREN','RPAREN',
-  'INTEGER_VAR','EQUALS',
+  'ID','EQUALS',
   'COLON',
   'NEWLINE','TAB',
 ]+list(reserved.values())
@@ -40,7 +40,7 @@ def t_INTEGER_CONST(t):
   t.value = int(t.value)
   return t
 
-def t_INTEGER_VAR(t):
+def t_ID(t):
   r'[a-zA-Z_][a-zA-Z_0-9]*'
   t.type = reserved.get(t.value,'ID')
   return t
