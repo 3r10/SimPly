@@ -6,6 +6,7 @@ reserved = {
   'if' : 'IF', 'elif' : 'ELIF', 'else' : 'ELSE',
   'while' : 'WHILE',
   'not' : 'NOT', 'or' : 'OR', 'and' : 'AND',
+  'True' : 'TRUE', 'False' : 'FALSE',
 }
 
 tokens = [
@@ -34,11 +35,7 @@ t_RPAREN = r'\)'
 t_EQUALS = r'='
 t_COLON = r':'
 t_TAB = r'\t'
-
-def t_INTEGER_CONST(t):
-  r'\d+'
-  t.value = int(t.value)
-  return t
+t_INTEGER_CONST = r'\d+'
 
 def t_ID(t):
   r'[a-zA-Z_][a-zA-Z_0-9]*'
