@@ -1,0 +1,28 @@
+digraph {
+	graph [rankdir=LR splines=polyline]
+	node [fontname=monospace]
+	edge [fontname=monospace]
+	Seq1 [label=Sequence]
+	S1 [label="x = 3" shape=box]
+	Seq1 -> S1
+	B2 [label=Branch]
+	C2 [label="x>0" shape=box]
+	B2 -> C2 [label=condition]
+	Seq3 [label=Sequence]
+	S3 [label="x = x-4" shape=box]
+	Seq3 -> S3
+	B2 -> Seq3 [label=if]
+	B4 [label=Branch]
+	C4 [label="x<0" shape=box]
+	B4 -> C4 [label=condition]
+	Seq5 [label=Sequence]
+	S5 [label="x = x+5" shape=box]
+	Seq5 -> S5
+	B4 -> Seq5 [label=if]
+	Seq7 [label=Sequence]
+	S7 [label="x = x+10" shape=box]
+	Seq7 -> S7
+	B4 -> Seq7 [label=else]
+	B2 -> B4 [label=else]
+	Seq1 -> B2
+}

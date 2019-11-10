@@ -1,0 +1,28 @@
+digraph {
+	graph [rankdir=LR splines=polyline]
+	node [fontname=monospace]
+	edge [fontname=monospace]
+	Seq1 [label=Sequence]
+	S1 [label="n = 67" shape=box]
+	Seq1 -> S1
+	S2 [label="div = 2" shape=box]
+	Seq1 -> S2
+	S3 [label="sum = 0" shape=box]
+	Seq1 -> S3
+	W4 [label=While]
+	C4 [label="div<n" shape=box]
+	W4 -> C4 [label=condition]
+	Seq5 [label=Sequence]
+	B5 [label=Branch]
+	C5 [label="n%div==0" shape=box]
+	B5 -> C5 [label=condition]
+	Seq6 [label=Sequence]
+	S6 [label="sum = sum+div" shape=box]
+	Seq6 -> S6
+	B5 -> Seq6 [label=if]
+	Seq5 -> B5
+	S7 [label="div = div+1" shape=box]
+	Seq5 -> S7
+	W4 -> Seq5 [label=block]
+	Seq1 -> W4
+}

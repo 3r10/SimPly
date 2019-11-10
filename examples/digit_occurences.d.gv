@@ -1,0 +1,62 @@
+digraph {
+	graph [rankdir=LR splines=polyline]
+	node [fontname=monospace]
+	edge [fontname=monospace]
+	Seq1 [label=Sequence]
+	S1 [label="n =" shape=box]
+	Element163270783997 [label=675567 shape=box]
+	S1 -> Element163270783997
+	Seq1 -> S1
+	S2 [label="digit =" shape=box]
+	Element580802473760 [label=6 shape=box]
+	S2 -> Element580802473760
+	Seq1 -> S2
+	S3 [label="nb_occurences =" shape=box]
+	Element798160425717 [label=0 shape=box]
+	S3 -> Element798160425717
+	Seq1 -> S3
+	W4 [label=While]
+	Element6769753195 [label=">" shape=box]
+	Element176522207030 [label=n shape=box]
+	Element6769753195 -> Element176522207030
+	Element947523594344 [label=0 shape=box]
+	Element6769753195 -> Element947523594344
+	W4 -> Element6769753195 [label=condition]
+	Seq5 [label=Sequence]
+	S5 [label="unit =" shape=box]
+	Element587165937385 [label="%" shape=box]
+	Element406931325039 [label=n shape=box]
+	Element587165937385 -> Element406931325039
+	Element860375586278 [label=10 shape=box]
+	Element587165937385 -> Element860375586278
+	S5 -> Element587165937385
+	Seq5 -> S5
+	B6 [label=Branch]
+	Element501278221606 [label="==" shape=box]
+	Element387299463381 [label=unit shape=box]
+	Element501278221606 -> Element387299463381
+	Element899031061705 [label=digit shape=box]
+	Element501278221606 -> Element899031061705
+	B6 -> Element501278221606 [label=condition]
+	Seq7 [label=Sequence]
+	S7 [label="nb_occurences =" shape=box]
+	Element21362579518 [label="+" shape=box]
+	Element407741976262 [label=nb_occurences shape=box]
+	Element21362579518 -> Element407741976262
+	Element728763321406 [label=1 shape=box]
+	Element21362579518 -> Element728763321406
+	S7 -> Element21362579518
+	Seq7 -> S7
+	B6 -> Seq7 [label=if]
+	Seq5 -> B6
+	S8 [label="n =" shape=box]
+	Element168666812538 [label="//" shape=box]
+	Element626643698960 [label=n shape=box]
+	Element168666812538 -> Element626643698960
+	Element377133123282 [label=10 shape=box]
+	Element168666812538 -> Element377133123282
+	S8 -> Element168666812538
+	Seq5 -> S8
+	W4 -> Seq5 [label=block]
+	Seq1 -> W4
+}

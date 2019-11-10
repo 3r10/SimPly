@@ -1,0 +1,30 @@
+digraph {
+	graph [rankdir=LR splines=polyline]
+	node [fontname=monospace]
+	edge [fontname=monospace]
+	Seq1 [label=Sequence]
+	S1 [label="n = 675567" shape=box]
+	Seq1 -> S1
+	S2 [label="digit = 6" shape=box]
+	Seq1 -> S2
+	S3 [label="nb_occurences = 0" shape=box]
+	Seq1 -> S3
+	W4 [label=While]
+	C4 [label="n>0" shape=box]
+	W4 -> C4 [label=condition]
+	Seq5 [label=Sequence]
+	S5 [label="unit = n%10" shape=box]
+	Seq5 -> S5
+	B6 [label=Branch]
+	C6 [label="unit==digit" shape=box]
+	B6 -> C6 [label=condition]
+	Seq7 [label=Sequence]
+	S7 [label="nb_occurences = nb_occurences+1" shape=box]
+	Seq7 -> S7
+	B6 -> Seq7 [label=if]
+	Seq5 -> B6
+	S8 [label="n = n//10" shape=box]
+	Seq5 -> S8
+	W4 -> Seq5 [label=block]
+	Seq1 -> W4
+}
