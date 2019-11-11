@@ -1,5 +1,3 @@
-#!/usr/bin/python3
-
 import ply.lex as lex
 
 reserved = {
@@ -16,7 +14,7 @@ tokens = [
   'LPAREN','RPAREN',
   'ID','EQUALS',
   'COLON',
-  'NEWLINE','TAB',
+  'NEWLINE','TAB', 'COMMENT',
 ]+list(reserved.values())
 
 t_PLUS = r'\+'
@@ -36,6 +34,7 @@ t_EQUALS = r'='
 t_COLON = r':'
 t_TAB = r'\t'
 t_INTEGER_CONST = r'\d+'
+t_COMMENT = r'\#.*'
 
 def t_ID(t):
   r'[a-zA-Z_][a-zA-Z_0-9]*'
@@ -53,12 +52,4 @@ def t_error(t):
   print("Illegal character '%s'" % t.value[0])
   t.lexer.skip(1)
 
-# Build the lexer
 lexer = lex.lex()
-# with open('ply_test_example.py', 'r') as py_file:
-#   py_code = py_file.read()
-# print(py_code)
-#
-# lexer.input(py_code)
-# for tok in lexer:
-#   print(tok)

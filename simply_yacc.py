@@ -1,11 +1,7 @@
-#!/usr/bin/python3
-# Yacc example
 
 import ply.yacc as yacc
-
-# Get the token map from the lexer.  This is required.
-from ply_test_lex import tokens
-from ply_test_syntax_tree import *
+from simply_lex import tokens
+from simply_ast import *
 
 precedence = (
  ('left','OR'),
@@ -31,7 +27,8 @@ def p_line(p):
           | while
           | if
           | elif
-          | else'''
+          | else
+          | comment'''
   p[1].setLine(p.lineno(1))
   p[0] = p[1]
 
@@ -97,40 +94,12 @@ def p_else(p):
   'else : ELSE COLON'
   p[0] = ASTElse()
 
+def p_comment(p):
+  'comment : COMMENT'
+  p[0] = ASTComment(p[1])
+
 # Error rule for syntax errors
 def p_error(p):
   print("Syntax error in input!")
 
-# Build the parser
-parser = yacc.yacc()
-
-py_code = ""
-py_file = open('ply_test_example.py', 'r')
-for line in py_file:
-  i = 0
-  while line[i]==' ':
-    i += 1
-  py_code += '\t'*(i//2)+line[i:]
-py_file.close()
-syntax_tree = parser.parse(py_code,tracking=True)
-# str rendering
-print(syntax_tree)
-# HTML w/ syntax highlighting
-html_file = open("test_html.html","wt")
-html_file.write("<h1>Code</h1><pre>"+syntax_tree.toHtml()+"</pre>")
-# Type check
-html_file.write("<h1>Environment</h1><pre>"+str(syntax_tree.checkType())+"</pre>")
-# AST Graph (graphviz)
-dot = Digraph(format='png')
-dot.graph_attr['rankdir'] = 'LR'
-dot.graph_attr['splines'] = "polyline"
-dot.node_attr['fontname'] = "monospace"
-dot.edge_attr['fontname'] = "monospace"
-syntax_tree.toGraph(dot,is_deep=True)
-dot.render('test_graph.gv')
-html_file.write("<h1>AST</h1><img width='100%' src='test_graph.gv.png'/>")
-
-# Execution
-syntax_tree.execute()
-#
-html_file.close()
+parser = yacc.yacc(outputdir="yacc.out")

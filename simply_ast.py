@@ -54,7 +54,7 @@ class ASTIntegerConstant:
   def __repr__(self):
     return str(self.value)
   def toHtml(self):
-    return str(self.value)
+    return '<span class="constant">'+str(self.value)+'</span>'
   def toGraph(self,dot):
     name = "Element"+str(random.randint(0,1000000000000))
     dot.node(name,str(self.value), shape='box')
@@ -70,7 +70,7 @@ class ASTBooleanConstant:
   def __repr__(self):
     return str(self.value)
   def toHtml(self):
-    return str(self.value)
+    return '<span class="constant">'+str(self.value)+'</span>'
   def toGraph(self,dot):
     name = "Element"+str(random.randint(0,1000000000000))
     dot.node(name,str(self.value), shape='box')
@@ -92,10 +92,8 @@ class ASTBinaryOperator:
       return str(self.operand1)+str(self.operator)+str(self.operand2)
   def toHtml(self):
     html = self.operand1.toHtml()
-    if self.operator in ["not","and","or"]:
-      html +=' <span style="color:blue">'+self.operator+'</span> '
-    else:
-      html +=self.operator.replace(">","&gt;").replace("<","&lt;")
+    space = " " if self.operator in ["not","and","or"] else ""
+    html +=space+'<span class="operator">'+self.operator+'</span>'+space
     html += self.operand2.toHtml()
     return html
   def toGraph(self,dot):
@@ -138,10 +136,10 @@ class ASTBooleanNot:
   def __repr__(self):
     return "not "+str(self.operand)
   def toHtml(self):
-    return '<span style="color:blue">not</span> '+self.expression.toHtml()
+    return '<span class="operator">not</span> '+self.operand.toHtml()
   def toGraph(self,dot):
     name = "Element"+str(random.randint(0,1000000000000))
-    dot.node(name,self.operator, shape='box')
+    dot.node(name,"not", shape='box')
     name_operand = self.operand.toGraph(dot)
     dot.edge(name,name_operand)
     return name
@@ -180,7 +178,7 @@ class ASTNode:
   def __repr__(self):
     return str(self.line_number)+"\t"*(self.indent+1)
   def toHtml(self):
-    return '<span style="color:grey; font-style: italic">'+str(self.line_number)+"</span>\t"+"  "*self.indent
+    return '<span class="lineno">'+str(self.line_number)+"</span>\t"+"  "*self.indent
   def execute(self,environment):
     print("Line ",self.line_number,": ",end="")
 
@@ -192,7 +190,7 @@ class ASTStatement(ASTNode):
   def __repr__(self):
     return ASTNode.__repr__(self)+self.id+" = "+str(self.expression)+"\n"
   def toHtml(self):
-    return ASTNode.toHtml(self)+self.id+" = "+str(self.expression)+"\n"
+    return ASTNode.toHtml(self)+self.id+" = "+self.expression.toHtml()+"\n"
   def toGraph(self,dot,is_deep=False):
     name = "S"+str(self.line_number)
     if is_deep:
@@ -222,7 +220,7 @@ class ASTWhile(ASTNode):
   def __repr__(self):
     return ASTNode.__repr__(self)+"while "+str(self.condition)+":\n"+str(self.sequence)
   def toHtml(self):
-    return ASTNode.toHtml(self)+'<span style="color:blue">while</span> '+self.condition.toHtml()+":\n"+self.sequence.toHtml()
+    return ASTNode.toHtml(self)+'<span class="keyword">while</span> '+self.condition.toHtml()+":\n"+self.sequence.toHtml()
   def toGraph(self,dot,is_deep=False):
     name = "W"+str(self.line_number)
     dot.node(name,"While")
@@ -275,7 +273,7 @@ class ASTIf(ASTNode):
       string += str(self.next)
     return string
   def toHtml(self):
-    string = ASTNode.toHtml(self)+'<span style="color:blue">'+self.type+'</span> '+self.condition.toHtml()+":\n"
+    string = ASTNode.toHtml(self)+'<span class="keyword">'+self.type+'</span> '+self.condition.toHtml()+":\n"
     string += self.sequence.toHtml()
     if self.next:
       string += self.next.toHtml()
@@ -320,7 +318,7 @@ class ASTElse(ASTNode):
   def __repr__(self):
     return ASTNode.__repr__(self)+'else:\n'+str(self.sequence)
   def toHtml(self):
-    string = ASTNode.toHtml(self)+'<span style="color:blue">else</span>:\n'
+    string = ASTNode.toHtml(self)+'<span class="keyword">else</span>:\n'
     string += self.sequence.toHtml()
     return string
   def toGraph(self,dot,is_deep=False):
@@ -333,6 +331,21 @@ class ASTElse(ASTNode):
     ASTNode.execute(self,environment)
     print("Else")
     self.sequence.execute(environment)
+
+class ASTComment(ASTNode):
+  def __init__(self,text):
+    self.type = "comment"
+    self.text = text
+  def __repr__(self):
+    return ASTNode.__repr__(self)+str(self.text)+"\n"
+  def toHtml(self):
+    return ASTNode.toHtml(self)+'<span class="comment">'+self.text+'</span>\n'
+  def toGraph(self,dot,is_deep=False):
+    return None
+  def checkType(self,environment):
+    return environment
+  def execute(self,environment):
+    pass
 
 class ASTSequence:
   def __init__(self):
@@ -362,9 +375,12 @@ class ASTSequence:
     dot.node(name,"Sequence")
     for node in self.nodes:
       node_name = node.toGraph(dot,is_deep)
-      dot.edge(name,node_name)
+      if node_name:
+        dot.edge(name,node_name)
     return name
-  def checkType(self,environment=ASTEnvironment()):
+  def checkType(self,environment=None):
+    if not environment:
+      environment=ASTEnvironment()
     for node in self.nodes:
       node.checkType(environment)
     return environment
