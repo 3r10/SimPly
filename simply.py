@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 import sys
-from simply_lex import lexer
-from simply_yacc import parser
+from simply_lex import SimplyLex
+from simply_yacc import *
 from graphviz import Digraph
 
 html_page_template = """<!DOCTYPE html>
@@ -45,27 +45,8 @@ html_file_template = """<h1>{}</h1>
 <h3>Deep</h3>
 <img width="50%" src="{}"/>""" # filename, code, env, simple, deep
 
-def spaces2tab(code_in):
-  code_out = ""
-  first_indent = 0
-  for line in code_in.split("\n"):
-    line += "\n"
-    i = 0
-    while line[i]==' ':
-      i += 1
-    if i>0 and first_indent==0:
-      first_indent = i
-    if i==0:
-      code_out += line[i:]
-    else:
-      code_out += '\t'*(i//first_indent)+line[i:]
-  while code_out[-1]=="\n":
-    code_out = code_out[:-1]
-  return code_out+"\n"
-
 def create_graph():
   dot = Digraph(format='png')
-  dot.graph_attr['rankdir'] = 'LR'
   dot.graph_attr['splines'] = "polyline"
   dot.node_attr['fontname'] = "monospace"
   dot.edge_attr['fontname'] = "monospace"
@@ -76,21 +57,20 @@ if len(sys.argv) <2:
     sys.stderr.write("Usage : "+sys.argv[0]+" file1.py [file2.py ...] \n")
     exit(1)
 
-
 html_body = ""
 for py_filename in sys.argv[1:]:
   with open(py_filename,'r') as py_file:
-    print("Parsing :",py_filename)
-    # TAB are part of the Subset Grammar
-    # spaces are ignored
-    py_code = spaces2tab(py_file.read())
+    py_code = py_file.read()
     # YACC parser
-    ast = parser.parse(py_code,tracking=True)
+    print("Parsing :",py_filename)
+    lexer = SimplyLex()
+    parser = yacc.yacc(outputdir="yacc.out")
+    ast = parser.parse(py_code,lexer=lexer)
     # HTML w/ syntax highlighting
     gv_filename_simple = py_filename[:-3]+".s.gv"
     gv_filename_deep = py_filename[:-3]+".d.gv"
     html_body += html_file_template.format(py_filename,
-                                           ast.toHtml(),
+                                           lexer.toHtml(),
                                            str(ast.checkType()),
                                            gv_filename_simple+".png",
                                            gv_filename_deep+".png")
@@ -102,10 +82,9 @@ for py_filename in sys.argv[1:]:
     ast.toGraph(dot,is_deep=True)
     dot.render(gv_filename_deep)
     # Console execution
-    print(ast)
+    print(lexer.code)
     ast.execute()
     # RESET
-    lexer.lineno = 1
     parser.restart()
 
 html_file = open("output.html","wt")

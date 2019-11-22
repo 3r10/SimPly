@@ -35,9 +35,11 @@ Avec les fichiers d'exemples fournis :
 
 ## Traitement de l'indentation :
 
-Le traitement de l'indentation n'est pas vérifié. Lors d'un premier passage, une modification du code est effectué afin d'inférer le type d'indentation utilisée et remplacer chaque indentation par une tabulation `\t`, seule reconnue. Les espaces sont ignorés.
+Lors d'un premier passage, une modification du code est effectué afin d'inférer le type d'indentation utilisée et remplacer chaque indentation par une tabulation `\t`, seule reconnue. Les espaces sont ignorés.
 
-Lors du *parsing*, chaque tabulation rencontrée incrémente un compteur de tabulations, ce compteur servant à descendre récursivement l'arbre syntaxique afin d'insérer la ligne *parsée* au bon endroit dans l'arbre.
+La classe SimplyLex est un "wrapper" du lexer lex. Elle permet :
+* de rajouter artificiellement les tokens `INDENT` et `DEDENT`, en particulier les `DEDENT` multiples qui, sinon, ne pourraient pas être ajoutés à la pile des tokens.
+* de garder trace du code source et de la position du lexer pour chaque token rencontré, afin de pouvoir réaliser une coloration syntaxique du code.
 
 ## Structure de l'arbre syntaxique :
 

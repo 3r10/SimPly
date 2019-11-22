@@ -1,7 +1,9 @@
 
 import ply.yacc as yacc
-from simply_lex import tokens
+from simply_lex import SimplyLex
 from simply_ast import *
+
+tokens = SimplyLex.tokens
 
 precedence = (
  ('left','OR'),
@@ -12,34 +14,41 @@ precedence = (
  ('left','TIMES','DIVIDE','MODULO'),
 )
 
-def p_code_simple(p):
-  'code : line NEWLINE'
-  p[0] = ASTSequence()
-  p[0].addNode(p[1])
+def p_sequence_simple(p):
+  '''sequence : assignment
+              | while
+              | if'''
+  p[0] = ASTSequence(p[1],None)
 
-def p_code_multiple(p):
-  'code : code line NEWLINE'
-  p[1].addNode(p[2])
-  p[0] = p[1]
+def p_sequence_multiple(p):
+  '''sequence : assignment sequence
+              | while sequence
+              | if sequence'''
+  p[0] = ASTSequence(p[1],p[2])
 
-def p_line(p):
-  '''line : statement
-          | while
-          | if
-          | elif
-          | else
-          | comment'''
-  p[1].setLine(p.lineno(1))
-  p[0] = p[1]
+def p_assignment(p):
+  'assignment : ID EQUALS expression NEWLINE'
+  p[0] = ASTAssignment(p.lineno(1),p.lexer.indent_level,p[1],p[3])
 
-def p_line_tab(p):
-  'line : TAB line'
-  p[2].doIndent()
-  p[0] = p[2]
+def p_while(p):
+  'while : WHILE expression COLON NEWLINE INDENT sequence DEDENT'
+  p[0] = ASTWhile(p.lineno(1),p.lexer.indent_level,p[2],p[6])
 
-def p_statement(p):
-  'statement : ID EQUALS expression'
-  p[0] = ASTStatement(p[1],p[3])
+def p_if(p):
+  'if : IF expression COLON NEWLINE INDENT sequence DEDENT else'
+  p[0] = ASTBranch(p.lineno(1),p.lexer.indent_level,p[2],p[6],p[8])
+
+def p_elif(p):
+  'else : ELIF expression COLON NEWLINE INDENT sequence DEDENT else'
+  p[0] = ASTSequence(ASTBranch(p.lineno(1),p.lexer.indent_level,p[2],p[6],p[8]),None)
+
+def p_else(p):
+  'else : ELSE COLON NEWLINE INDENT sequence DEDENT'
+  p[0] = p[5]
+
+def p_no_else(p):
+  'else :'
+  p[0] = None
 
 def p_expression_variable(p):
   'expression : ID'
@@ -78,28 +87,7 @@ def p_expression_group(p):
   'expression : LPAREN expression RPAREN'
   p[0] = ASTExpressionGroup(p[2])
 
-def p_while(p):
-  'while : WHILE expression COLON'
-  p[0] = ASTWhile(p[2])
-
-def p_if(p):
-  'if : IF expression COLON'
-  p[0] = ASTIf("if",p[2])
-
-def p_elif(p):
-  'elif : ELIF expression COLON'
-  p[0] = ASTIf("elif",p[2])
-
-def p_else(p):
-  'else : ELSE COLON'
-  p[0] = ASTElse()
-
-def p_comment(p):
-  'comment : COMMENT'
-  p[0] = ASTComment(p[1])
-
 # Error rule for syntax errors
 def p_error(p):
+  print(p)
   print("Syntax error in input!")
-
-parser = yacc.yacc(outputdir="yacc.out")

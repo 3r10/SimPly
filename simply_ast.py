@@ -34,8 +34,6 @@ class ASTVariable:
     self.name = name
   def __repr__(self):
     return self.name
-  def toHtml(self):
-    return str(self.name)
   def toGraph(self,dot):
     name = "Element"+str(random.randint(0,1000000000000))
     dot.node(name,self.name, shape='box')
@@ -53,8 +51,6 @@ class ASTIntegerConstant:
     self.value = value
   def __repr__(self):
     return str(self.value)
-  def toHtml(self):
-    return '<span class="constant">'+str(self.value)+'</span>'
   def toGraph(self,dot):
     name = "Element"+str(random.randint(0,1000000000000))
     dot.node(name,str(self.value), shape='box')
@@ -69,8 +65,6 @@ class ASTBooleanConstant:
     self.value = value
   def __repr__(self):
     return str(self.value)
-  def toHtml(self):
-    return '<span class="constant">'+str(self.value)+'</span>'
   def toGraph(self,dot):
     name = "Element"+str(random.randint(0,1000000000000))
     dot.node(name,str(self.value), shape='box')
@@ -90,12 +84,6 @@ class ASTBinaryOperator:
       return str(self.operand1)+" "+str(self.operator)+" "+str(self.operand2)
     else:
       return str(self.operand1)+str(self.operator)+str(self.operand2)
-  def toHtml(self):
-    html = self.operand1.toHtml()
-    space = " " if self.operator in ["not","and","or"] else ""
-    html +=space+'<span class="operator">'+self.operator+'</span>'+space
-    html += self.operand2.toHtml()
-    return html
   def toGraph(self,dot):
     name = "Element"+str(random.randint(0,1000000000000))
     dot.node(name,self.operator, shape='box')
@@ -135,8 +123,6 @@ class ASTBooleanNot:
     self.operand = operand
   def __repr__(self):
     return "not "+str(self.operand)
-  def toHtml(self):
-    return '<span class="operator">not</span> '+self.operand.toHtml()
   def toGraph(self,dot):
     name = "Element"+str(random.randint(0,1000000000000))
     dot.node(name,"not", shape='box')
@@ -155,8 +141,6 @@ class ASTExpressionGroup:
     self.expression = expression
   def __repr__(self):
     return "("+str(self.expression)+")"
-  def toHtml(self):
-    return "("+self.expression.toHtml()+")"
   def toGraph(self,dot):
     name = "Element"+str(random.randint(0,1000000000000))
     dot.node(name,"( )", shape='box')
@@ -169,30 +153,16 @@ class ASTExpressionGroup:
   def evaluate(self,environment):
     return self.expression.evaluate(environment)
 
-class ASTNode:
-  def setLine(self,number):
-    self.line_number = number
-    self.indent = 0
-  def doIndent(self):
-    self.indent += 1
-  def __repr__(self):
-    return str(self.line_number)+"\t"*(self.indent+1)
-  def toHtml(self):
-    return '<span class="lineno">'+str(self.line_number)+"</span>\t"+"  "*self.indent
-  def execute(self,environment):
-    print("Line ",self.line_number,": ",end="")
-
-class ASTStatement(ASTNode):
-  def __init__(self,id,expression):
-    self.type = "statement"
+class ASTAssignment:
+  def __init__(self,lineno,indent_level,id,expression):
+    self.lineno = lineno
+    self.indent_level = indent_level
     self.id = id
     self.expression = expression
   def __repr__(self):
-    return ASTNode.__repr__(self)+self.id+" = "+str(self.expression)+"\n"
-  def toHtml(self):
-    return ASTNode.toHtml(self)+self.id+" = "+self.expression.toHtml()+"\n"
+    return "\t"*self.indent_level+self.id+" = "+str(self.expression)+"\n"
   def toGraph(self,dot,is_deep=False):
-    name = "S"+str(self.line_number)
+    name = "S"+str(self.lineno)
     if is_deep:
       dot.node(name,self.id+" =", shape='box')
       name_expression = self.expression.toGraph(dot)
@@ -205,29 +175,25 @@ class ASTStatement(ASTNode):
     environment.assignVariable(self.id,state,type)
     return environment
   def execute(self,environment):
-    ASTNode.execute(self,environment)
     value = self.expression.evaluate(environment)
     environment[self.id] = value
     print(self.id,"<-",value)
 
-class ASTWhile(ASTNode):
-  def __init__(self,condition):
-    self.type = "while"
+class ASTWhile:
+  def __init__(self,lineno,indent_level,condition,sequence):
+    self.lineno = lineno
+    self.indent_level = indent_level
     self.condition = condition
-    self.sequence = ASTSequence()
-  def addNode(self,node):
-    self.sequence.addNode(node)
+    self.sequence = sequence
   def __repr__(self):
-    return ASTNode.__repr__(self)+"while "+str(self.condition)+":\n"+str(self.sequence)
-  def toHtml(self):
-    return ASTNode.toHtml(self)+'<span class="keyword">while</span> '+self.condition.toHtml()+":\n"+self.sequence.toHtml()
+    return "\t"*self.indent_level+"while "+str(self.condition)+":\n"+str(self.sequence)
   def toGraph(self,dot,is_deep=False):
-    name = "W"+str(self.line_number)
+    name = "W"+str(self.lineno)
     dot.node(name,"While")
     if is_deep:
       condition_name = self.condition.toGraph(dot)
     else:
-      condition_name = "C"+str(self.line_number)
+      condition_name = "C"+str(self.lineno)
       dot.node(condition_name,str(self.condition),shape='box')
     dot.edge(name,condition_name,"condition")
     sequence_name = self.sequence.toGraph(dot,is_deep)
@@ -244,146 +210,78 @@ class ASTWhile(ASTNode):
     return environment
   def execute(self,environment):
     while self.condition.evaluate(environment):
-      ASTNode.execute(self,environment)
       print("Condition : T")
       self.sequence.execute(environment)
-    ASTNode.execute(self,environment)
     print("Condition : F")
 
-class ASTIf(ASTNode):
-  def __init__(self,type,condition):
-    self.type = type
+class ASTBranch:
+  def __init__(self,lineno,indent_level,condition,if_sequence,else_sequence):
+    self.lineno = lineno
+    self.indent_level = indent_level
     self.condition = condition
-    self.sequence = ASTSequence()
-    self.next = None
-  def addNode(self,node):
-    if self.next:
-      self.next.addNode(node)
-    else:
-      self.sequence.addNode(node)
-  def setNext(self,node):
-    if self.next:
-      self.next.setNext(node)
-    else:
-      self.next = node
+    self.if_sequence= if_sequence
+    self.else_sequence= else_sequence
   def __repr__(self):
-    string = ASTNode.__repr__(self)+self.type+" "+str(self.condition)+":\n"
-    string += str(self.sequence)
-    if self.next:
-      string += str(self.next)
-    return string
-  def toHtml(self):
-    string = ASTNode.toHtml(self)+'<span class="keyword">'+self.type+'</span> '+self.condition.toHtml()+":\n"
-    string += self.sequence.toHtml()
-    if self.next:
-      string += self.next.toHtml()
+    string = "\t"*self.indent_level+"if "+str(self.condition)+":\n"+str(self.if_sequence)
+    if self.else_sequence:
+      string += "\t"*self.indent_level+"else...\n"+str(self.else_sequence)
     return string
   def toGraph(self,dot,is_deep=False):
-    name = "B"+str(self.line_number)
+    name = "B"+str(self.lineno)
     dot.node(name,"Branch")
     if is_deep:
       condition_name = self.condition.toGraph(dot)
     else:
-      condition_name = "C"+str(self.line_number)
+      condition_name = "C"+str(self.lineno)
       dot.node(condition_name,str(self.condition),shape='box')
     dot.edge(name,condition_name,"condition")
-    if_name = self.sequence.toGraph(dot,is_deep)
+    if_name = self.if_sequence.toGraph(dot,is_deep)
     dot.edge(name,if_name,"if")
-    if self.next:
-      else_name = self.next.toGraph(dot,is_deep)
+    if self.else_sequence:
+      else_name = self.else_sequence.toGraph(dot,is_deep)
       dot.edge(name,else_name,"else")
     return name
   def checkType(self,environment):
     state,type = self.condition.getStateType(environment)
     assert type=="bool", "Condition ("+str(self.condition)+") should be bool"
-    self.sequence.checkType(environment)
-    if self.next:
-      self.next.checkType(environment)
+    self.if_sequence.checkType(environment)
+    if self.else_sequence:
+      self.else_sequence.checkType(environment)
     return environment
   def execute(self,environment):
-    ASTNode.execute(self,environment)
     condition = self.condition.evaluate(environment)
-    print(self.type,condition)
+    print("Condition :",condition)
     if condition:
-      self.sequence.execute(environment)
-    elif self.next:
-      self.next.execute(environment)
-
-class ASTElse(ASTNode):
-  def __init__(self):
-    self.type = "else"
-    self.sequence = ASTSequence()
-  def addNode(self,node):
-    self.sequence.addNode(node)
-  def __repr__(self):
-    return ASTNode.__repr__(self)+'else:\n'+str(self.sequence)
-  def toHtml(self):
-    string = ASTNode.toHtml(self)+'<span class="keyword">else</span>:\n'
-    string += self.sequence.toHtml()
-    return string
-  def toGraph(self,dot,is_deep=False):
-    sequence_name = self.sequence.toGraph(dot,is_deep)
-    return sequence_name
-  def checkType(self,environment):
-    self.sequence.checkType(environment)
-    return environment
-  def execute(self,environment):
-    ASTNode.execute(self,environment)
-    print("Else")
-    self.sequence.execute(environment)
-
-class ASTComment(ASTNode):
-  def __init__(self,text):
-    self.type = "comment"
-    self.text = text
-  def __repr__(self):
-    return ASTNode.__repr__(self)+str(self.text)+"\n"
-  def toHtml(self):
-    return ASTNode.toHtml(self)+'<span class="comment">'+self.text+'</span>\n'
-  def toGraph(self,dot,is_deep=False):
-    return None
-  def checkType(self,environment):
-    return environment
-  def execute(self,environment):
-    pass
+      self.if_sequence.execute(environment)
+    elif self.else_sequence:
+      self.else_sequence.execute(environment)
 
 class ASTSequence:
-  def __init__(self):
-    self.nodes = []
-  def addNode(self,node):
-    if self.nodes==[]:
-      self.nodes.append(node)
-    elif self.nodes[-1].indent==node.indent:
-      if node.type in ["elif", "else"] and self.nodes[-1].type in ["if","elif"]:
-        self.nodes[-1].setNext(node)
-      else:
-        self.nodes.append(node)
-    else:
-      self.nodes[-1].addNode(node)
+  def __init__(self,statement,next):
+    self.statement = statement
+    self.next = next
   def __repr__(self):
-    repr = ""
-    for node in self.nodes:
-      repr += str(node)
-    return repr
-  def toHtml(self):
-    string = ""
-    for node in self.nodes:
-      string += node.toHtml()
+    string = str(self.statement)
+    if self.next:
+      string += str(self.next)
     return string
   def toGraph(self,dot,is_deep=False):
-    name = "Seq"+str(self.nodes[0].line_number)
+    name = "Seq"+str(self.statement.lineno)
     dot.node(name,"Sequence")
-    for node in self.nodes:
-      node_name = node.toGraph(dot,is_deep)
-      if node_name:
-        dot.edge(name,node_name)
+    statement_name = self.statement.toGraph(dot,is_deep)
+    dot.edge(name,statement_name)
+    if self.next:
+      next_name = self.next.toGraph(dot,is_deep)
+      dot.edge(name,next_name)
     return name
   def checkType(self,environment=None):
     if not environment:
       environment=ASTEnvironment()
-    for node in self.nodes:
-      node.checkType(environment)
+    self.statement.checkType(environment)
+    if self.next:
+      self.next.checkType(environment)
     return environment
   def execute(self,environment={}):
-    for node in self.nodes:
-      node.execute(environment)
+    self.statement.execute(environment)
+    if self.next:
+      self.next.execute(environment)
