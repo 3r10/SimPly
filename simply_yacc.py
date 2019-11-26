@@ -3,7 +3,7 @@ import ply.yacc as yacc
 from simply_lex import SimplyLex
 from simply_ast import *
 
-tokens = SimplyLex.tokens
+tokens = SimplyLex.parser_tokens
 
 precedence = (
  ('left','OR'),
@@ -14,41 +14,47 @@ precedence = (
  ('left','TIMES','DIVIDE','MODULO'),
 )
 
-def p_sequence_simple(p):
-  '''sequence : assignment
-              | while
-              | if'''
-  p[0] = ASTSequence(p[1],None)
-
-def p_sequence_multiple(p):
-  '''sequence : assignment sequence
-              | while sequence
-              | if sequence'''
+def p_sequence(p):
+  'sequence : statement sequence'
   p[0] = ASTSequence(p[1],p[2])
+
+def p_sequence_single(p):
+  'sequence : statement'
+  p[0] = p[1]
+
+def p_sequence_newline(p):
+  'sequence : NEWLINE sequence'
+  p[0] = p[2]
+
+def p_statement(p):
+  '''statement : assignment
+               | while
+               | if'''
+  p[0] = p[1]
 
 def p_assignment(p):
   'assignment : ID EQUALS expression NEWLINE'
-  p[0] = ASTAssignment(p.lineno(1),p.lexer.indent_level,p[1],p[3])
+  p[0] = ASTAssignment(p[1],p[3])
 
 def p_while(p):
   'while : WHILE expression COLON NEWLINE INDENT sequence DEDENT'
-  p[0] = ASTWhile(p.lineno(1),p.lexer.indent_level,p[2],p[6])
+  p[0] = ASTWhile(p[2],p[6])
 
 def p_if(p):
   'if : IF expression COLON NEWLINE INDENT sequence DEDENT else'
-  p[0] = ASTBranch(p.lineno(1),p.lexer.indent_level,p[2],p[6],p[8])
+  p[0] = ASTBranch(p[2],p[6],p[8])
 
 def p_elif(p):
   'else : ELIF expression COLON NEWLINE INDENT sequence DEDENT else'
-  p[0] = ASTSequence(ASTBranch(p.lineno(1),p.lexer.indent_level,p[2],p[6],p[8]),None)
+  p[0] = ASTBranch(p[2],p[6],p[8])
 
 def p_else(p):
   'else : ELSE COLON NEWLINE INDENT sequence DEDENT'
   p[0] = p[5]
 
-def p_no_else(p):
+def p_nop(p):
   'else :'
-  p[0] = None
+  p[0] = ASTNop()
 
 def p_expression_variable(p):
   'expression : ID'

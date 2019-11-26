@@ -37,13 +37,11 @@ html_page_template = """<!DOCTYPE html>
 html_file_template = """<h1>{}</h1>
 <h2>Code</h2>
 <pre>{}</pre>
-<h2>Environment</h2>
-<pre>{}</pre>
 <h2>AST</h2>
 <h3>Simple</h3>
-<img width="50%" src="{}"/>
+<img src="{}"/>
 <h3>Deep</h3>
-<img width="50%" src="{}"/>""" # filename, code, env, simple, deep
+<img src="{}"/>""" # filename, code, env, simple, deep
 
 def create_graph():
   dot = Digraph(format='png')
@@ -69,9 +67,11 @@ for py_filename in sys.argv[1:]:
     # HTML w/ syntax highlighting
     gv_filename_simple = py_filename[:-3]+".s.gv"
     gv_filename_deep = py_filename[:-3]+".d.gv"
+    environment = {}
+    ast.checkType(environment)
+    ast.local_environment = environment
     html_body += html_file_template.format(py_filename,
                                            lexer.toHtml(),
-                                           str(ast.checkType()),
                                            gv_filename_simple+".png",
                                            gv_filename_deep+".png")
     # AST Graph (graphviz)
@@ -82,9 +82,10 @@ for py_filename in sys.argv[1:]:
     ast.toGraph(dot,is_deep=True)
     dot.render(gv_filename_deep)
     # Console execution
-    print(lexer.code)
-    ast.execute()
+    # print(lexer.code)
+    # ast.execute({})
     # RESET
+    print()
     parser.restart()
 
 html_file = open("output.html","wt")

@@ -10,15 +10,16 @@ class SimplyLex:
     'True' : 'TRUE', 'False' : 'FALSE',
   }
 
-  tokens = [
+  parser_tokens = [
     'INTEGER_CONST',
     'PLUS','MINUS','TIMES','DIVIDE','MODULO',
     'LT','GT','LE','GE','EQ','NE',
     'LPAREN','RPAREN',
     'ID','EQUALS',
     'COLON',
-    'NEWLINE', 'COMMENT', 'INDENT','DEDENT'
+    'NEWLINE','INDENT','DEDENT'
   ]+list(reserved.values())
+  tokens = parser_tokens+['COMMENT']
 
   t_PLUS = r'\+'
   t_MINUS = r'-'
@@ -46,12 +47,23 @@ class SimplyLex:
     r'\n\t*'
     t.lexer.lineno += 1
     self.lineno += 1
+    string = t.value
+    t.value = 0
+    while string[-1]=="\t":
+      t.value += 1
+      string = string[:-1]
     return t
 
   def t_COMMENT(self,t):
-    r'\#.*\n'
+    r'\#.*\n\t*'
     t.lexer.lineno += 1
     self.lineno += 1
+    t.type = 'NEWLINE'
+    string = t.value
+    t.value = 0
+    while string[-1]=="\t":
+      t.value += 1
+      string = string[:-1]
     return t
 
   t_ignore = ' '
@@ -75,7 +87,7 @@ class SimplyLex:
     while tok:
       self.additional_tokens.append(tok)
       if tok.type=='NEWLINE':
-        indent_level = len(tok.value)-1
+        indent_level = tok.value
         while self.indent_level<indent_level:
           self.indent_level += 1
           tok2 = lex.LexToken()
