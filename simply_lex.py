@@ -8,6 +8,7 @@ class SimplyLex:
     'while' : 'WHILE',
     'not' : 'NOT', 'or' : 'OR', 'and' : 'AND',
     'True' : 'TRUE', 'False' : 'FALSE',
+    'print' : 'PRINT',
   }
 
   parser_tokens = [
@@ -17,7 +18,8 @@ class SimplyLex:
     'LPAREN','RPAREN',
     'ID','EQUALS',
     'COLON',
-    'NEWLINE','INDENT','DEDENT'
+    'NEWLINE','INDENT','DEDENT',
+    'EOF'
   ]+list(reserved.values())
   tokens = parser_tokens+['COMMENT']
 
@@ -105,6 +107,12 @@ class SimplyLex:
           tok2.lexpos = tok.lexpos+indent_level
           self.additional_tokens.append(tok2)
       tok = self.lexer.token()
+    eof = lex.LexToken()
+    eof.type = 'EOF'
+    eof.value = ''
+    eof.lineno = 0
+    eof.lexpos = 0
+    self.additional_tokens.append(eof)
     self.indent_level = 0
     self.i_token = 0
 

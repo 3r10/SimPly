@@ -2,7 +2,6 @@
 import sys
 from simply_lex import SimplyLex
 from simply_yacc import *
-from graphviz import Digraph
 
 html_page_template = """<!DOCTYPE html>
 <html lang="en" dir="ltr">
@@ -37,18 +36,14 @@ html_page_template = """<!DOCTYPE html>
 html_file_template = """<h1>{}</h1>
 <h2>Code</h2>
 <pre>{}</pre>
-<h2>AST</h2>
+<h2>ASCII</h2>
+<pre>{}</pre>
+<h2>Graphviz</h2>
 <h3>Simple</h3>
 <img src="{}"/>
 <h3>Deep</h3>
 <img src="{}"/>""" # filename, code, env, simple, deep
 
-def create_graph():
-  dot = Digraph(format='png')
-  dot.graph_attr['splines'] = "polyline"
-  dot.node_attr['fontname'] = "monospace"
-  dot.edge_attr['fontname'] = "monospace"
-  return dot
 
 # inputs
 if len(sys.argv) <2:
@@ -63,28 +58,24 @@ for py_filename in sys.argv[1:]:
     print("Parsing :",py_filename)
     lexer = SimplyLex()
     parser = yacc.yacc(outputdir="yacc.out")
-    ast = parser.parse(py_code,lexer=lexer)
+    ast_root = parser.parse(py_code,lexer=lexer)
+    # Compile...
+    arm_filename = py_filename[:-3]+".S"
+    arm_file = open(arm_filename,"wt")
+    arm_file.write(ast_root.process())
+    arm_file.close()
+
+
     # HTML w/ syntax highlighting
     gv_filename_simple = py_filename[:-3]+".s.gv"
     gv_filename_deep = py_filename[:-3]+".d.gv"
-    environment = {}
-    ast.checkType(environment)
-    ast.local_environment = environment
     html_body += html_file_template.format(py_filename,
                                            lexer.toHtml(),
+                                           "<pre>"+str(ast_root)+"</pre>",
                                            gv_filename_simple+".png",
                                            gv_filename_deep+".png")
-    # AST Graph (graphviz)
-    dot = create_graph()
-    ast.toGraph(dot)
-    dot.render(gv_filename_simple)
-    dot = create_graph()
-    ast.toGraph(dot,is_deep=True)
-    dot.render(gv_filename_deep)
-    # Console execution
-    # print(lexer.code)
-    # ast.execute({})
-    # RESET
+    ast_root.toGraph(gv_filename_simple,is_deep=False)
+    ast_root.toGraph(gv_filename_deep,is_deep=True)
     print()
     parser.restart()
 

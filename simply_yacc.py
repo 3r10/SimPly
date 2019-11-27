@@ -14,6 +14,10 @@ precedence = (
  ('left','TIMES','DIVIDE','MODULO'),
 )
 
+def p_code(p):
+  'code : sequence EOF'
+  p[0] = ASTRoot(p[1])
+
 def p_sequence(p):
   'sequence : statement sequence'
   p[0] = ASTSequence(p[1],p[2])
@@ -29,12 +33,17 @@ def p_sequence_newline(p):
 def p_statement(p):
   '''statement : assignment
                | while
-               | if'''
+               | if
+               | print'''
   p[0] = p[1]
 
 def p_assignment(p):
   'assignment : ID EQUALS expression NEWLINE'
   p[0] = ASTAssignment(p[1],p[3])
+
+def p_print(p):
+  'print : PRINT LPAREN expression RPAREN NEWLINE'
+  p[0] = ASTPrint(p[3])
 
 def p_while(p):
   'while : WHILE expression COLON NEWLINE INDENT sequence DEDENT'
@@ -91,7 +100,7 @@ def p_boolean_not(p):
 
 def p_expression_group(p):
   'expression : LPAREN expression RPAREN'
-  p[0] = ASTExpressionGroup(p[2])
+  p[0] = p[2]
 
 # Error rule for syntax errors
 def p_error(p):
