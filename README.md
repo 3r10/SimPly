@@ -17,10 +17,14 @@ Le fichier destination comprend :
 Avec un d'exemple fourni :
 * `./simply.py examples/factorial.py test.S`
 
-Sous linux, le fichier peut alors être assemblé et exécuté avec les commandes
+Sous Linux, le fichier peut alors être assemblé et exécuté avec les commandes
 suivantes :
 * assembleur : `arm-linux-gnueabihf-gcc -ggdb3 -nostdlib -o test -static test.S`
 * exécution : `qemu-arm test`
+
+**Tous les exemples**
+Pour tester tous les exemples sous Linux :
+* `./test_all_examples.sh`
 
 ## Sous-ensemble reconnu :
 
