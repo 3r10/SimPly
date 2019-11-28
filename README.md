@@ -2,19 +2,25 @@
 
 ## Introduction
 
-**SimPly** est un parser d'un sous-ensemble très limité du langage Python.
+**SimPly** est un compilateur d'un sous-ensemble très limité du langage Python vers le langage assembleur ARM.
 
-`./simply.py <file1>.py [ <file2>.py ... ]`
+`./simply.py file.py file.S`
 
-Le résultat est créé dans `output.html`.
-
-Les fichiers des arbres syntaxiques sont créés sous les noms `<file1>.s.gv` (arbre simple sans récursivité sur les expressions) et `<file1>.d.gv` (arbre profond avec récursivité sur les expressions). Les images `png` présentes sur la sortie `html` de même.
+Le fichier destination comprend :
+* Le code source original
+* L'arbre syntaxique au format ASCII
+* Une partie compilée
+* Les "fonctions" utilitaires pour `print`
 
 **Exemple**
 
-Avec les fichiers d'exemples fournis :
+Avec un d'exemple fourni :
+* `./simply.py examples/factorial.py test.S`
 
-`./simply.py examples/*.py`
+Sous linux, le fichier peut alors être assemblé et exécuté avec les commandes
+suivantes :
+* assembleur : `arm-linux-gnueabihf-gcc -ggdb3 -nostdlib -o test -static test.S`
+* exécution : `qemu-arm test`
 
 ## Sous-ensemble reconnu :
 
@@ -26,10 +32,19 @@ Avec les fichiers d'exemples fournis :
 * Comparateurs `==` et `!=` sur types identiques
 * Parenthésage
 * Structures `while` et `if`-`elif`-`else`
+* Affichage `print(var)` où `var` est du type `int` ou `bool`
+
+## Limitations connues :
+
+* Nombre de variables (champ .data de l'assembleur) fixé
+* Entiers négatifs non/mal gérés
+* Entiers sur 32 bits
+* Pas d'optimisation de la compilation
 
 ## À venir ? :
 
-* `<<`, `>>`, `&` et `|`
+* Opérateurs bit-à-bit : `<<`, `>>`, `&` et `|`
+* Chaînes de caractères
 * Listes (avec restrictions de type "tableau" ?)
 * Fonctions
 
@@ -43,4 +58,4 @@ La classe SimplyLex est un "wrapper" du lexer lex. Elle permet :
 
 ## Structure de l'arbre syntaxique :
 
-La racine de l'arbre est un objet de type `ASTSequence`.
+La racine de l'arbre est un objet de type `ASTRoot`.
