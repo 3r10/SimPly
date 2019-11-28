@@ -23,8 +23,9 @@ suivantes :
 * exécution : `qemu-arm test`
 
 **Tous les exemples**
-Pour tester tous les exemples sous Linux :
-* `./test_all_examples.sh`
+
+Pour tester tous les exemples sous Linux (nécessite l'installation de `arm-linux-gnueabihf-gcc` et `qemu-arm`):
+* `./simply_test_all_examples.sh`
 
 ## Sous-ensemble reconnu :
 
@@ -40,8 +41,6 @@ Pour tester tous les exemples sous Linux :
 
 ## Limitations connues :
 
-* Nombre de variables (champ .data de l'assembleur) fixé
-* Entiers négatifs non/mal gérés
 * Entiers sur 32 bits
 * Pas d'optimisation de la compilation
 
