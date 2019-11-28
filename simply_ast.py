@@ -1,4 +1,3 @@
-from graphviz import Digraph
 import random
 from simply_arm import simply_arm_template
 
@@ -21,10 +20,6 @@ class ASTVariable:
     self.address = -1
   def toString(self,prepend):
     return self.name+" (*"+str(self.address)+")\n"
-  def toGraph(self,dot):
-    name = unique_id()
-    dot.node(name,self.toString(""), shape='box')
-    return name
   def getType(self,environment):
     assert self.name in environment, "Variable "+self.name+" referenced before assignment OR initialized locally"
     return environment[self.name]
@@ -42,10 +37,6 @@ class ASTIntegerConstant:
     self.address = -1
   def toString(self,prepend):
     return str(self.value)+" (*"+str(self.address)+")\n"
-  def toGraph(self,dot):
-    name = unique_id()
-    dot.node(name,self.toString(""), shape='box')
-    return name
   def getType(self,environment):
     return "int"
   def assignMemory(self,environment,address):
@@ -61,10 +52,6 @@ class ASTBooleanConstant:
     self.address = -1
   def toString(self,prepend):
     return str(self.value)+" (*"+str(self.address)+")\n"
-  def toGraph(self,dot):
-    name = unique_id()
-    dot.node(name,self.toString(""), shape='box')
-    return name
   def getType(self,environment):
     return "bool"
   def assignMemory(self,environment,address):
@@ -85,14 +72,6 @@ class ASTBinaryOperator:
     string += prepend+"├─"+self.operand1.toString(prepend+"│ ")
     string += prepend+"└─"+self.operand2.toString(prepend+"  ")
     return string
-  def toGraph(self,dot):
-    name = unique_id()
-    dot.node(name,self.operator+" (*"+str(self.address)+")", shape='box')
-    name_operand1 = self.operand1.toGraph(dot)
-    dot.edge(name,name_operand1)
-    name_operand2 = self.operand2.toGraph(dot)
-    dot.edge(name,name_operand2)
-    return name
   def getType(self,environment):
     type1 = self.operand1.getType(environment)
     type2 = self.operand2.getType(environment)
@@ -175,12 +154,6 @@ class ASTBooleanNot:
     string = "not\n"
     string += prepend+"└─"+self.operand.toString(prepend+"  ")
     return string
-  def toGraph(self,dot):
-    name = unique_id()
-    dot.node(name,"not ("+str(self.address)+")", shape='box')
-    name_operand = self.operand.toGraph(dot)
-    dot.edge(name,name_operand)
-    return name
   def getType(self,environment):
     type = self.operand.getType(environment)
     assert type=="bool","Expression ("+str(self.operand)+") should be bool"
@@ -202,10 +175,6 @@ class ASTNop:
     self.local_environment = {}
   def toString(self,prepend):
     return "Nop\n"
-  def toGraph(self,dot,is_deep=False):
-    name = unique_id()
-    dot.node(name,"NOP", shape='box')
-    return name
   def checkType(self,environment):
     if environment=={}:
       self.local_environment = environment
@@ -228,18 +197,6 @@ class ASTAssignment:
     string += prepend+"├i─{} (*{})\n".format(str(self.name),self.address)
     string += prepend+"└─"+self.expression.toString(prepend+"  ")
     return string
-  def toGraph(self,dot,is_deep=False):
-    name = unique_id()
-    if is_deep:
-      dot.node(name,self.name+"("+str(self.address)+") =", shape='box')
-      name_expression = self.expression.toGraph(dot)
-      dot.edge(name,name_expression)
-    else:
-      dot.node(name,self.name+" = "+self.expression.toString(""), shape='box')
-    if self.local_environment!={}:
-      env_name = dict2graph(dot,self.local_environment)
-      dot.edge(name,env_name,arrowhead="none")
-    return name
   def checkType(self,environment):
     type = self.expression.getType(environment)
     if self.name in environment:
@@ -274,18 +231,6 @@ class ASTPrint:
     string = "Print\n"
     string += prepend+"└─"+self.expression.toString(prepend+"  ")
     return string
-  def toGraph(self,dot,is_deep=False):
-    name = unique_id()
-    if is_deep:
-      dot.node(name,"Print", shape='box')
-      name_expression = self.expression.toGraph(dot)
-      dot.edge(name,name_expression)
-    else:
-      dot.node(name,"Print ->"+self.expression.toString(""), shape='box')
-    if self.local_environment!={}:
-      env_name = dict2graph(dot,self.local_environment)
-      dot.edge(name,env_name,arrowhead="none")
-    return name
   def checkType(self,environment):
     self.type = self.expression.getType(environment)
   def assignMemory(self,environment,address=0):
@@ -315,21 +260,6 @@ class ASTWhile:
     string += prepend+"├c─"+self.condition.toString(prepend+"│  ")
     string += prepend+"└─"+self.statement.toString(prepend+"  ")
     return string
-  def toGraph(self,dot,is_deep=False):
-    name = unique_id()
-    dot.node(name,"While",shape="diamond")
-    if is_deep:
-      condition_name = self.condition.toGraph(dot)
-    else:
-      condition_name = unique_id()
-      dot.node(condition_name,self.condition.toString(""),shape='box')
-    dot.edge(name,condition_name,"condition")
-    statement_name = self.statement.toGraph(dot,is_deep)
-    dot.edge(name,statement_name,"block")
-    if self.local_environment!={}:
-      env_name = dict2graph(dot,self.local_environment)
-      dot.edge(name,env_name,arrowhead="none")
-    return name
   def checkType(self,environment):
     type = self.condition.getType(environment)
     assert type=="bool", "Condition ("+self.condition.toString("")+") should be bool"
@@ -378,23 +308,6 @@ class ASTBranch:
     string += prepend+"├i─"+self.if_statement.toString(prepend+"│  ")
     string += prepend+"└e─"+self.else_statement.toString(prepend+"   ")
     return string
-  def toGraph(self,dot,is_deep=False):
-    name = unique_id()
-    dot.node(name,"Branch",shape="diamond")
-    if is_deep:
-      condition_name = self.condition.toGraph(dot)
-    else:
-      condition_name = unique_id()
-      dot.node(condition_name,str(self.condition),shape='box')
-    dot.edge(name,condition_name,"condition")
-    if_name = self.if_statement.toGraph(dot,is_deep)
-    dot.edge(name,if_name,"if")
-    else_name = self.else_statement.toGraph(dot,is_deep)
-    dot.edge(name,else_name,"else")
-    if self.local_environment!={}:
-      env_name = dict2graph(dot,self.local_environment)
-      dot.edge(name,env_name,arrowhead="none")
-    return name
   def checkType(self,environment):
     type = self.condition.getType(environment)
     assert type=="bool", "Condition ("+str(self.condition)+") should be bool"
@@ -462,17 +375,6 @@ class ASTSequence:
     string += prepend+"├─"+self.statement1.toString(prepend+"│ ")
     string += prepend+"└─"+self.statement2.toString(prepend+"  ")
     return string
-  def toGraph(self,dot,is_deep=False):
-    name = unique_id()
-    dot.node(name,"Sequence",shape="diamond")
-    statement1_name = self.statement1.toGraph(dot,is_deep)
-    dot.edge(name,statement1_name)
-    statement2_name = self.statement2.toGraph(dot,is_deep)
-    dot.edge(name,statement2_name)
-    if self.local_environment!={}:
-      env_name = dict2graph(dot,self.local_environment)
-      dot.edge(name,env_name,arrowhead="none")
-    return name
   def checkType(self,environment):
     if environment=={}:
       self.local_environment = environment
@@ -499,20 +401,19 @@ class ASTSequence:
 class ASTRoot:
   def __init__(self,root):
     self.root = root
+    self.py_filename = "<unknown.py>"
+    self.py_code = "<not given>"
   def __repr__(self):
-    return self.toString()
+    return self.toString("")
   def process(self):
     self.root.checkType({})
     self.root.assignMemory({})
-    return simply_arm_template.format(self.root.compile())
-  def toString(self):
-    string = "Root\n└─"
-    string += self.root.toString("  ")
+    return simply_arm_template.format(self.py_filename,
+                                      "// "+self.py_code.replace("\n","\n// "),
+                                      self.toString("// "),
+                                      self.root.compile())
+  def toString(self,prepend):
+    string = prepend+"Root\n"
+    string += prepend+"└─"
+    string += self.root.toString(prepend+"  ")
     return string
-  def toGraph(self,filename,is_deep=False):
-    dot = Digraph(format='png')
-    dot.graph_attr['splines'] = "polyline"
-    dot.node_attr['fontname'] = "monospace"
-    dot.edge_attr['fontname'] = "monospace"
-    self.root.toGraph(dot,is_deep)
-    dot.render(filename)

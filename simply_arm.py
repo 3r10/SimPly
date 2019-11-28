@@ -1,11 +1,32 @@
-simply_arm_template = """.global _start
+simply_arm_template = """/*************************
+ * Generated with SimPly *
+ *************************/
+
+/************************
+ * Original source code *
+ ************************/
+// File : {}
+
+{}
+/************************
+ * Abstract Syntax Tree *
+ ************************/
+{}
+/*********************
+ * ARM assembly code *
+ *********************/
+
+.global _start
 
 _start:
+/* Start of compiled part */
 {}
+/* End of compiled part */
 end:
   MOV R7, #1  // syscall 1 : exit
   SWI 0
 
+/* print "Functions" */
 .printbool:
   CMP R0, #0
   BEQ .printfalse
@@ -106,6 +127,7 @@ end:
   SWI 0         // syscall
   BX LR
 
+/* Data zone (to improve) */
 .data
 char:
   .ascii "    "

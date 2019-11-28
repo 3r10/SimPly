@@ -127,35 +127,6 @@ class SimplyLex:
     self.i_token += 1
     return tok
 
-  def toHtml(self):
-    list_cuts = []
-    for i in range(len(self.additional_tokens)):
-      list_cuts.append(self.additional_tokens[i].lexpos)
-    html = '<span class="lineno">1\t</span>'
-    for i in range(len(list_cuts)-1):
-      fragment = self.code[list_cuts[i]:list_cuts[i+1]]
-      type = self.additional_tokens[i].type
-      lineno = self.additional_tokens[i].lineno
-      if type in ['IF', 'ELIF', 'ELSE', 'WHILE']:
-        css_class = 'class = "keyword"'
-      elif type in ['INTEGER_CONST', 'TRUE', 'FALSE']:
-        css_class = 'class = "constant"'
-      elif type in ['NOT', 'OR', 'AND',
-                    'PLUS','MINUS','TIMES','DIVIDE','MODULO',
-                    'LT','GT','LE','GE','EQ','NE']:
-        css_class = 'class = "operator"'
-      elif type=='COMMENT':
-        fragment += '</span><span class="lineno">'+str(lineno+1)+'\t'
-        css_class = 'class = "comment"'
-      elif type=='NEWLINE':
-        html += "\n"
-        fragment = str(lineno+1)+"\t"+fragment[1:]
-        css_class = 'class = "lineno"'
-      else:
-        css_class = ""
-      html += '<span '+css_class+'title="'+type+'">'+fragment+"</span>"
-    return html
-
   def spaces2tab(self,code_in):
     # TAB are part of the Subset Grammar
     # spaces are ignored
