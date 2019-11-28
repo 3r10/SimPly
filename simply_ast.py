@@ -11,6 +11,8 @@ class ASTEnvironment:
     self.nb_tmp = 0
     self.tmp_counter = 0
     self.label_counter = 0
+  def __repr__(self):
+    return str(self.variables)
   def getVariableType(self,name):
     if name in self.variables:
       return self.variables[name]
@@ -94,7 +96,7 @@ class ASTVariable:
   def __init__(self,name):
     self.name = name
   def toString(self,prepend):
-    return self.name+" ("+self.id+")\n"
+    return "{}\t\tid:{}\n".format(self.name,self.id)
   def getType(self,environment):
     type = environment.getVariableType(self.name)
     assert type!=None, "Variable "+self.name+" referenced before assignment OR initialized locally"
@@ -108,7 +110,7 @@ class ASTIntegerConstant:
   def __init__(self,value):
     self.value = value
   def toString(self,prepend):
-    return str(self.value)+" ("+self.id+")\n"
+    return "{}\t\tid:{}\n".format(self.value,self.id)
   def getType(self,environment):
     return "int"
   def setId(self,environment):
@@ -120,7 +122,7 @@ class ASTBooleanConstant:
   def __init__(self,value):
     self.value = value
   def toString(self,prepend):
-    return str(self.value)+" ("+self.id+")\n"
+    return "{}\t\tid:{}\n".format(self.value,self.id)
   def getType(self,environment):
     return "bool"
   def setId(self,environment):
@@ -134,7 +136,7 @@ class ASTBinaryOperator:
     self.operand1 = operand1
     self.operand2 = operand2
   def toString(self,prepend):
-    string = "{} ({})\n".format(self.operator,self.id)
+    string = "{}\t\tid:{},label:{}\n".format(self.operator,self.id,self.label)
     string += prepend+"├─"+self.operand1.toString(prepend+"│ ")
     string += prepend+"└─"+self.operand2.toString(prepend+"  ")
     return string
@@ -172,23 +174,23 @@ class ASTBinaryOperator:
       elif self.operator=="-":
         string += "  SUB R0, R1, R2\n"
       elif self.operator=="*":
-        string += "  MOV R0, #0\n.loopmulcond_{}:\n  CMP R2, #0\n  BEQ .loopmulend_{}\n  ADD R0, R0, R1\n  SUB R2, #1\n  B .loopmulcond_{}\n.loopmulend_{}:\n".format(self.label,self.label,self.label,self.label)
+        string += "  MOV R0, #0\n.{}_mul_loop_condition:\n  CMP R2, #0\n  BEQ .{}_mul_loop_end\n  ADD R0, R0, R1\n  SUB R2, #1\n  B .{}_mul_loop_condition\n.{}_mul_loop_end:\n".format(self.label,self.label,self.label,self.label)
       elif self.operator in ["//","%"]:
-        string += "  MOV R0, #0\n.loopdivcond_{}:\n  CMP R1, R2\n  BMI .loopdivend_{}\n  SUB R1, R1, R2\n  ADD R0, #1\n  B .loopdivcond_{}\n.loopdivend_{}:\n".format(self.label,self.label,self.label,self.label)
+        string += "  MOV R0, #0\n.{}_div_loop_condition:\n  CMP R1, R2\n  BMI .{}_div_loop_end\n  SUB R1, R1, R2\n  ADD R0, #1\n  B .{}_div_loop_condition\n.{}_div_loop_end:\n".format(self.label,self.label,self.label,self.label)
         if self.operator=="%":
           string += "  MOV R0, R1\n"
       elif self.operator=="==":
-        string += "  MOV R0, #1\n  CMP R1, R2\n  BEQ .true_{}\n  MOV R0, #0\n.true_{}:\n".format(self.label,self.label)
+        string += "  MOV R0, #1\n  CMP R1, R2\n  BEQ .{}_true\n  MOV R0, #0\n.{}_true:\n".format(self.label,self.label)
       elif self.operator=="!=":
-        string += "  MOV R0, #0\n  CMP R1, R2\n  BEQ .false_{}\n  MOV R0, #1\n.false_{}:\n".format(self.label,self.label)
+        string += "  MOV R0, #0\n  CMP R1, R2\n  BEQ .{}_false\n  MOV R0, #1\n.{}_false:\n".format(self.label,self.label)
       elif self.operator=="<":
-        string += "  MOV R0, #1\n  CMP R1, R2\n  BMI .true_{}\n  MOV R0, #0\n.true_{}:\n".format(self.label,self.label)
+        string += "  MOV R0, #1\n  CMP R1, R2\n  BMI .{}_true\n  MOV R0, #0\n.{}_true:\n".format(self.label,self.label)
       elif self.operator==">":
-        string += "  MOV R0, #1\n  CMP R2, R1\n  BMI .true_{}\n  MOV R0, #0\n.true_{}:\n".format(self.label,self.label)
+        string += "  MOV R0, #1\n  CMP R2, R1\n  BMI .{}_true\n  MOV R0, #0\n.{}_true:\n".format(self.label,self.label)
       elif self.operator=="<=":
-        string += "  MOV R0, #1\n  CMP R2, R1\n  BPL .true_{}\n  MOV R0, #0\n.true_{}:\n".format(self.label,self.label)
+        string += "  MOV R0, #1\n  CMP R2, R1\n  BPL .{}_true\n  MOV R0, #0\n.{}_true:\n".format(self.label,self.label)
       elif self.operator==">=":
-        string += "  MOV R0, #1\n  CMP R1, R2\n  BPL .true_{}\n  MOV R0, #0\n.true_{}:\n".format(self.label,self.label)
+        string += "  MOV R0, #1\n  CMP R1, R2\n  BPL .{}_true\n  MOV R0, #0\n.{}_true:\n".format(self.label,self.label)
       else:
         assert False, "unknown operator "+self.operator
     elif self.operator in ["and","or"]:
@@ -211,7 +213,7 @@ class ASTBooleanNot:
   def __init__(self,operand):
     self.operand = operand
   def toString(self,prepend):
-    string = "not\n"
+    string = "not\t\tid:{}\n".format(self.id)
     string += prepend+"└─"+self.operand.toString(prepend+"  ")
     return string
   def getType(self,environment):
@@ -246,7 +248,7 @@ class ASTAssignment:
     self.expression = expression
   def toString(self,prepend):
     string = "Assignment\n"
-    string += prepend+"├i─{} ({})\n".format(str(self.name),self.id)
+    string += prepend+"├i─{}\t\tid:{}\n".format(str(self.name),self.id)
     string += prepend+"└─"+self.expression.toString(prepend+"  ")
     return string
   def checkType(self,environment):
@@ -289,7 +291,7 @@ class ASTWhile:
     self.statement = statement
     self.environment = None
   def toString(self,prepend):
-    string = "While\n"
+    string = "While\t\tlabel:{},localvars:{}\n".format(self.label,self.environment)
     string += prepend+"├c─"+self.condition.toString(prepend+"│  ")
     string += prepend+"└─"+self.statement.toString(prepend+"  ")
     return string
@@ -306,14 +308,14 @@ class ASTWhile:
     self.condition.setId(environment)
     self.statement.setId(self.environment)
   def compile(self):
-    string = ".loopcond_"+self.label+":\n"
+    string = ".{}_condition:\n".format(self.label)
     string += self.condition.compile()
     string += "  LDR R0, ={}\n  LDR R0, [R0]\n".format(self.condition.id)
     string += "  CMP R0, #0\n"
-    string += "  BEQ .loopend_"+self.label+"\n"
+    string += "  BEQ .{}_end\n".format(self.label)
     string += self.statement.compile()
-    string += "  B .loopcond_"+self.label+"\n"
-    string += ".loopend_"+self.label+":\n"
+    string += "  B .{}_condition\n".format(self.label)
+    string += ".{}_end:\n".format(self.label)
     return string
 
 class ASTBranch:
@@ -324,7 +326,7 @@ class ASTBranch:
     self.if_environment = None
     self.else_environment = None
   def toString(self,prepend):
-    string = "Branch\n"
+    string = "Branch\t\tlabel:{},localvars:{},{}\n".format(self.label,self.if_environment,self.else_environment)
     string += prepend+"├c─"+self.condition.toString(prepend+"│  ")
     string += prepend+"├i─"+self.if_statement.toString(prepend+"│  ")
     string += prepend+"└e─"+self.else_statement.toString(prepend+"   ")
@@ -347,12 +349,12 @@ class ASTBranch:
     string = self.condition.compile()
     string += "  LDR R0, ={}\n  LDR R0, [R0]\n".format(self.condition.id)
     string += "  CMP R0, #0\n"
-    string += "  BEQ .branchelse_"+self.label+"\n"
+    string += "  BEQ .{}_else\n".format(self.label)
     string += self.if_statement.compile()
-    string += "  B .branchend_"+self.label+"\n"
-    string += ".branchelse_"+self.label+":\n"
+    string += "  B .{}_end\n".format(self.label)
+    string += ".{}_else:\n".format(self.label)
     string += self.else_statement.compile()
-    string += ".branchend_"+self.label+":\n"
+    string += ".{}_end:\n".format(self.label)
     return string
 
 class ASTSequence:
@@ -382,20 +384,20 @@ class ASTRoot:
     self.root = root
     self.py_filename = "<unknown.py>"
     self.py_code = "<not given>"
+    self.environment = ASTEnvironment()
   def __repr__(self):
     return self.toString("")
   def process(self):
-    environment = ASTEnvironment()
-    self.root.checkType(environment)
-    self.root.setId(environment)
+    self.root.checkType(self.environment)
+    self.root.setId(self.environment)
     arm_code = self.root.compile()
-    arm_data = environment.toArmData()
+    arm_data = self.environment.toArmData()
     return simply_arm_template.format(self.py_filename,
                                       "// "+self.py_code.replace("\n","\n// "),
                                       self.toString("// "),
                                       arm_code,arm_data)
   def toString(self,prepend):
-    string = prepend+"Root\n"
+    string = prepend+"Root\t\tlocalvars:{}\n".format(self.environment)
     string += prepend+"└─"
     string += self.root.toString(prepend+"  ")
     return string
