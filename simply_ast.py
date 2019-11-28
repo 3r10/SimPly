@@ -1,6 +1,5 @@
 import random
-from simply_arm import simply_arm_template
-
+from simply_arm import simply_arm_template, arm_fast_multiplication_template, arm_fast_division_template
 
 class ASTEnvironment:
   def __init__(self,parent=None):
@@ -174,9 +173,9 @@ class ASTBinaryOperator:
       elif self.operator=="-":
         string += "  SUB R0, R1, R2\n"
       elif self.operator=="*":
-        string += "  MOV R0, #0\n.{}_mul_loop_condition:\n  CMP R2, #0\n  BEQ .{}_mul_loop_end\n  ADD R0, R0, R1\n  SUB R2, #1\n  B .{}_mul_loop_condition\n.{}_mul_loop_end:\n".format(self.label,self.label,self.label,self.label)
+        string += arm_fast_multiplication_template.format(label=self.label)
       elif self.operator in ["//","%"]:
-        string += "  MOV R0, #0\n.{}_div_loop_condition:\n  CMP R1, R2\n  BMI .{}_div_loop_end\n  SUB R1, R1, R2\n  ADD R0, #1\n  B .{}_div_loop_condition\n.{}_div_loop_end:\n".format(self.label,self.label,self.label,self.label)
+        string += arm_fast_division_template.format(label=self.label)
         if self.operator=="%":
           string += "  MOV R0, R1\n"
       elif self.operator=="==":
@@ -392,10 +391,11 @@ class ASTRoot:
     self.root.setId(self.environment)
     arm_code = self.root.compile()
     arm_data = self.environment.toArmData()
-    return simply_arm_template.format(self.py_filename,
-                                      "// "+self.py_code.replace("\n","\n// "),
-                                      self.toString("// "),
-                                      arm_code,arm_data)
+    return simply_arm_template.format(filename=self.py_filename,
+                                      source="// "+self.py_code.replace("\n","\n// "),
+                                      ast=self.toString("// "),
+                                      arm_code=arm_code,
+                                      arm_data=arm_data)
   def toString(self,prepend):
     string = prepend+"Root\t\tlocalvars:{}\n".format(self.environment)
     string += prepend+"└─"
