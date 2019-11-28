@@ -287,7 +287,7 @@ class ASTPrint:
       dot.edge(name,env_name,arrowhead="none")
     return name
   def checkType(self,environment):
-    type = self.expression.getType(environment)
+    self.type = self.expression.getType(environment)
   def assignMemory(self,environment,address=0):
     if environment=={}:
       assert address==0, "incoherent adress for empty environment"
@@ -299,7 +299,7 @@ class ASTPrint:
     self.expression.assignMemory(environment,address)
   def compile(self):
     string = self.expression.compile()
-    string += "  LDR R0, =var{}\n  LDR R0, [R0]\n  BL .printhexint\n".format(self.expression.address)
+    string += "  LDR R0, =var{}\n  LDR R0, [R0]\n  BL .print{}\n".format(self.expression.address,self.type)
     return string
   def execute(self,environment):
     value = self.expression.evaluate(environment)

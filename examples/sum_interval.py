@@ -7,3 +7,4 @@ while i<=b:
     i = i+1
 # must be True
 test = s==((a+b)*(b-a+1))//2
+print(test)

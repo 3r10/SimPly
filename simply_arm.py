@@ -6,58 +6,115 @@ end:
   MOV R7, #1  // syscall 1 : exit
   SWI 0
 
-.printhexint:
-  // number to be printed is in R0.
-  // R1 : address to write
-  // R2 : counter
-  // R3 : tmp char
-  // R4 : 4 chars
-  MOV R2, #8 // initialize loop counter
-  MOV R4, #0 // initialize 4 chars
+.printbool:
+  CMP R0, #0
+  BEQ .printfalse
+  // print
+  MOV R7, #4    // syscall 4 : write screen R0,R1,R2
+  MOV R0, #1    // dest
+  LDR R1, =true // pchar
+  MOV R2, #5    // len of mess
+  SWI 0         // syscall
+  BX LR
+.printfalse:
+  // print
+  MOV R7, #4    // syscall 4 : write screen R0,R1,R2
+  MOV R0, #1    // dest
+  LDR R1, =false // pchar
+  MOV R2, #6    // len of mess
+  SWI 0         // syscall
+  BX LR
+
+.printint:
+  // zero case
+  CMP R0, #0
+  BNE .nonzero
+  // print 0
+  MOV R7, #4    // syscall 4 : write screen R0,R1,R2
+  MOV R0, #1    // dest
+  LDR R1, =zero // pchar
+  MOV R2, #2    // len of mess
+  SWI 0         // syscall
+  BX LR
+.nonzero:
+  // R1 : max n so 10^n<=R0
+  // R2 : corresponding 10^n
+  // R3 : 10^(n+1)
+  MOV R1, #0
+  MOV R2, #1
+  MOV R3, #10
+.loopexpcond:
+  CMP R0, R3
+  BMI .loopexpend
+  // next candidate is OK :
+  ADD R1, #1
+  MOV R2, R3
+  // R3 <- R3*10
+  LSL R3, #2
+  ADD R3, R2
+  LSL R3, #1
+  B .loopexpcond
+.loopexpend:
 .loopprintcond:
-  CMP R2, #0
-  BEQ .loopprintend
-  LSL R4, R4, #8
-  MOV R3, R0      //
-  LSL R3, R3, #28 // Take least significant nibble from R0
-  LSR R3, R3, #28 //
-  ADD R3, R3, #48 // add '0'
-  CMP R3, #58   // did that exceed ASCII '9'?
-  BCC .ifdigit09  // if not...
-  ADD R3, R3, #7  // add 'A'-('0'+10) if needed
-.ifdigit09:
-  // put one char in string
-  ADD R4, R4, R3
-  // half-way
-  CMP R2, #5
-  BNE .loopprintnext
-  LDR R1, =hexint
-  ADD R1, #6 // start address (after 0x)
-  STR R4, [R1]
-  MOV R4, #0 // re-initialize 4 chars
-.loopprintnext:
-  // prepare next loop
-  LSR R0, R0, #4 // >>=4
-  SUB R2, R2, #1 // decrement counter
+  CMP R1, #0
+  BMI .loopprintend
+  // R3 : next digit
+  MOV R3, #0
+.loopdigitcond:
+  CMP R0, R2
+  BMI .loopdigitend
+  SUB R0, R2
+  ADD R3, #1
+  B .loopdigitcond
+.loopdigitend:
+  PUSH {{R0,R1}}
+  // R3 is computed, put it in char
+  ADD R3, #48 // add '0'
+  LDR R1, =char
+  STR R3, [R1]
+  // print
+  MOV R7, #4    // syscall 4 : write screen R0,R1,R2
+  MOV R0, #1    // dest
+  LDR R1, =char // pchar
+  MOV R2, #1    // len of mess
+  SWI 0         // syscall
+  POP {{R0,R1}}
+  SUB R1, #1
+  MOV R2, #1
+  MOV R3, #0
+.loopreexpcond:
+  CMP R3, R1
+  BPL .loopreexpend
+  // R2 <- R2*10
+  MOV R4, R2
+  LSL R2, #2
+  ADD R2, R4
+  LSL R2, #1
+  ADD R3, #1
+  B .loopreexpcond
+.loopreexpend:
   B .loopprintcond
 .loopprintend:
-  LDR R1, =hexint
-  ADD R1, #2 // start address (after 0x)
-  STR R4, [R1]
+  MOV R0, #10 // newline
+  LDR R1, =char
+  STR R0, [R1]
   // print
-  MOV R7, #4      // syscall 4 : write screen R0,R1,R2
-  MOV R0, #1      // destination : to screen
-  LDR R1, =hexint // pchar
-  MOV R2, #11     // len of mess
-  SWI 0           // syscall
-  //
+  MOV R7, #4    // syscall 4 : write screen R0,R1,R2
+  MOV R0, #1    // dest
+  LDR R1, =char // pchar
+  MOV R2, #1    // len of mess
+  SWI 0         // syscall
   BX LR
 
 .data
-hexint:
-  .ascii "0x________\\n"
-keepitsafe:
-  .word 0
+char:
+  .ascii "    "
+zero:
+  .ascii "0\\n  "
+true:
+  .ascii "True\\n"
+false:
+  .ascii "False\\n"
 var0:
   .word 0
 var1:

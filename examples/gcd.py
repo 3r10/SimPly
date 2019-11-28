@@ -4,4 +4,4 @@ while b!=0:
     tmp = b
     b = a%b
     a = tmp
-gcd = a
+print(a)
