@@ -51,13 +51,34 @@ end:
   CMP R0, #0
   BNE .nonzero
   // print 0
+  MOV R0, #48 // '0'
+  LDR R1, =char
+  STR R0, [R1]
+  // print
   MOV R7, #4    // syscall 4 : write screen R0,R1,R2
   MOV R0, #1    // dest
-  LDR R1, =zero // pchar
-  MOV R2, #2    // len of mess
+  LDR R1, =char // pchar
+  MOV R2, #1    // len of mess
   SWI 0         // syscall
-  BX LR
+  B .loopprintend
 .nonzero:
+  CMP R0, #0
+  BPL .positive
+  MOV R1, #-1
+  MUL R0, R1
+  PUSH {{R0}}
+  // print -
+  MOV R0, #45 // '-'
+  LDR R1, =char
+  STR R0, [R1]
+  // print
+  MOV R7, #4    // syscall 4 : write screen R0,R1,R2
+  MOV R0, #1    // dest
+  LDR R1, =char // pchar
+  MOV R2, #1    // len of mess
+  SWI 0         // syscall
+  POP {{R0}}
+.positive:
   // R1 : max n so 10^n<=R0
   // R2 : corresponding 10^n
   // R3 : 10^(n+1)
@@ -137,29 +158,4 @@ true:
   .ascii "True\\n"
 false:
   .ascii "False\\n"
-var0:
-  .word 0
-var1:
-  .word 0
-var2:
-  .word 0
-var3:
-  .word 0
-var4:
-  .word 0
-var5:
-  .word 0
-var6:
-  .word 0
-var7:
-  .word 0
-var8:
-  .word 0
-var9:
-  .word 0
-var10:
-  .word 0
-var11:
-  .word 0
-var12:
-  .word 0"""
+{}"""

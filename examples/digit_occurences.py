@@ -1,4 +1,4 @@
-n = 666*134
+n = 6676655
 print(n)
 digit = 6
 nb_occurences = 0
