@@ -1,20 +1,22 @@
 import random
 from simply_arm import simply_arm_template, arm_fast_multiplication_template, arm_fast_division_template
+from simply_cfg import *
 
 class ASTEnvironment:
   def __init__(self,parent=None):
     self.parent = parent
+    if not self.parent:
+      self.id = 0
+      self.last_id = 0
+    else:
+      self.id = self.parent.newId()
     self.children = []
     self.variables = {}
-    self.constants = {}
-    self.nb_tmp = 0
-    self.tmp_counter = 0
-    self.label_counter = 0
   def __repr__(self):
     return str(self.variables)
   def getVariableType(self,name):
     if name in self.variables:
-      return self.variables[name]
+      return self.id,self.variables[name]
     if self.parent:
       return self.parent.getVariableType(name)
     return None #not found
@@ -25,6 +27,11 @@ class ASTEnvironment:
     new = ASTEnvironment(self)
     self.children.append(new)
     return new
+  def newId(self):
+    if self.parent:
+      return self.parent.newId()
+    self.last_id += 1
+    return self.last_id
   def merge(self,other):
     assert self.parent==other.parent, "trying to merge environments with no common parent"
     assert self.parent!=None, "trying to merge environments with 'None' parent"
@@ -41,325 +48,389 @@ class ASTEnvironment:
     # variables initialized ONLY in the ELSE block
     for name in other.variables:
       print("Warning : variable "+name+" is local")
-  def setConstant(self,value):
-    if self.parent:
-      return self.parent.setConstant(value)
-    if value not in self.constants:
-      self.constants[value] = "const_"+str(value)
-    return self.constants[value]
-  def increaseTmpCounter(self):
-    if self.parent:
-      return self.parent.increaseTmpCounter()
-    self.tmp_counter += 1
-    if self.tmp_counter>self.nb_tmp:
-      self.nb_tmp = self.tmp_counter
-    return self.tmp_counter
-  def decreaseTmpCounter(self):
-    if self.parent:
-      return self.parent.decreaseTmpCounter()
-    self.tmp_counter -= 1
-    return self.tmp_counter
-  def resetTmpCounter(self):
-    if self.parent:
-      return self.parent.resetTmpCounter()
-    self.tmp_counter = 0
-  def increaseLabelCounter(self):
-    if self.parent:
-      return self.parent.increaseLabelCounter()
-    self.label_counter += 1
-    return self.label_counter
-  def getAllVariables(self):
-    variables = []
-    for variable in self.variables:
-      variables.append(variable)
-    for child in self.children:
-      child_variables = child.getAllVariables()
-      for variable in child_variables:
-        if variable not in variables:
-          variables.append(variable)
-    return variables
-  def toArmData(self):
-    data = ""
-    for variable in self.getAllVariables():
-      data += "var_"+variable+":\n  .word 0\n"
-    for tmp in range(1,self.nb_tmp+1):
-      data += "tmp_"+str(tmp)+":\n  .word 0\n"
-    for constant in self.constants:
-      if isinstance(constant,int):
-        data += "{}:\n  .word {:d}\n".format(self.constants[constant],constant)
-      else:
-        data += "{}:\n  .word {:d}\n".format(self.constants[constant],[0,1][constant])
-    return data
+
+class ASTBooleanNot:
+  def __init__(self,operand):
+    self.operand = operand
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.operand.setEnvironment(environment)
+    self.environment = environment
+  def toString(self,prepend):
+    string = "not\n"
+    string += prepend+"└─"+self.operand.toString(prepend+"  ")
+    return string
+  def checkType(self):
+    self.operand,type = self.operand.checkType()
+    assert type=="bool","Expression ("+str(self.operand)+") should be bool"
+    return self,"bool"
+  def booleanCleanup(self,invert):
+    return self.operand.booleanCleanup(not invert)
+  def toCFG(self,block,name):
+    operand_name = block.addTmp()
+    block = self.operand.toCFG(block,operand_name)
+    block.addQuadruplet(['not',name,operand_name,None])
+    return block
 
 class ASTVariable:
   def __init__(self,name):
     self.name = name
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.environment = environment
   def toString(self,prepend):
-    return "{}\t\tid:{}\n".format(self.name,self.id)
-  def getType(self,environment):
-    type = environment.getVariableType(self.name)
+    return "{}\n".format(self.name)
+  def checkType(self):
+    id,type = self.environment.getVariableType(self.name)
     assert type!=None, "Variable "+self.name+" referenced before assignment OR initialized locally"
-    return type
-  def setId(self,environment):
-    self.id = 'var_'+self.name
-  def compile(self):
-    return ""
+    return self,type
+  def booleanCleanup(self,invert):
+    if invert:
+       return ASTBooleanNot(self)
+    return self
+  def toCFG(self,block,name):
+    environment_id,type = self.environment.getVariableType(self.name)
+    id = "var_{}_{}".format(environment_id,self.name)
+    block.addQuadruplet(['mov',name,id,None])
+    return block
 
 class ASTIntegerConstant:
   def __init__(self,value):
     self.value = value
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.environment = environment
   def toString(self,prepend):
-    return "{}\t\tid:{}\n".format(self.value,self.id)
-  def getType(self,environment):
-    return "int"
-  def setId(self,environment):
-    self.id = environment.setConstant(self.value)
-  def compile(self):
-    return ""
+    return "{}\n".format(self.value)
+  def checkType(self):
+    return self,"int"
+  def booleanCleanup(self,invert):
+    return self
+  def toCFG(self,block,name):
+    id = "const_{}".format(self.value)
+    block.root.addArmData(id,self.value)
+    block.addQuadruplet(['mov',name,id,None])
+    return block
 
 class ASTBooleanConstant:
   def __init__(self,value):
     self.value = value
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.environment = environment
   def toString(self,prepend):
-    return "{}\t\tid:{}\n".format(self.value,self.id)
-  def getType(self,environment):
-    return "bool"
-  def setId(self,environment):
-    self.id = environment.setConstant(self.value)
-  def compile(self):
-    return ""
+    return "{}\n".format(self.value)
+  def checkType(self):
+    return self,"bool"
+  def booleanCleanup(self,invert):
+    if invert:
+      self.value = not self.value
+    return self
+  def toCFG(self,block,name):
+    id = "const_{}".format(self.value)
+    block.root.addArmData(id,[0,1][self.value])
+    block.addQuadruplet(['mov',name,id,None])
+    return block
+
+class ASTIntegerOperator:
+  def __init__(self,operator,operand1,operand2):
+    self.operator = operator
+    self.operand1 = operand1
+    self.operand2 = operand2
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.operand1.setEnvironment(environment)
+    self.operand2.setEnvironment(environment)
+    self.environment = environment
+  def toString(self,prepend):
+    string = "{}\n".format(self.operator)
+    string += prepend+"├─"+self.operand1.toString(prepend+"│ ")
+    string += prepend+"└─"+self.operand2.toString(prepend+"  ")
+    return string
+  def checkType(self):
+    return self,"int"
+  def booleanCleanup(self,invert):
+    return self
+  def toCFG(self,block,name):
+    operand1_name = block.addTmp()
+    operand2_name = block.addTmp()
+    block = self.operand1.toCFG(block,operand1_name)
+    block = self.operand2.toCFG(block,operand2_name)
+    block.addQuadruplet([self.operator,name,operand1_name,operand2_name])
+    return block
+
+class ASTIntegerComparator:
+  def __init__(self,operator,operand1,operand2):
+    self.operator = operator
+    self.operand1 = operand1
+    self.operand2 = operand2
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.operand1.setEnvironment(environment)
+    self.operand2.setEnvironment(environment)
+    self.environment = environment
+  def toString(self,prepend):
+    string = "{}\n".format(self.operator)
+    string += prepend+"├─"+self.operand1.toString(prepend+"│ ")
+    string += prepend+"└─"+self.operand2.toString(prepend+"  ")
+    return string
+  def booleanCleanup(self,invert):
+    self.operand1 = self.operand1.booleanCleanup(invert)
+    self.operand2 = self.operand2.booleanCleanup(invert)
+    if invert:
+      inverse_operators = {"<":">=",">":"<=","<=":">",">=":"<","==":"!=","!=":"=="}
+      self.operator = inverse_operators[self.operator]
+    return self
+  def toCFG(self,block,name):
+    operand1_name = block.addTmp()
+    operand2_name = block.addTmp()
+    block = self.operand1.toCFG(block,operand1_name)
+    block = self.operand2.toCFG(block,operand2_name)
+    block.addQuadruplet([self.operator,name,operand1_name,operand2_name])
+    return block
+
+class ASTLogicalOperator:
+  def __init__(self,operator,operand1,operand2):
+    self.operator = operator
+    self.operand1 = operand1
+    self.operand2 = operand2
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.operand1.setEnvironment(environment)
+    self.operand2.setEnvironment(environment)
+    self.environment = environment
+  def toString(self,prepend):
+    string = "{}\n".format(self.operator)
+    string += prepend+"├─"+self.operand1.toString(prepend+"│ ")
+    string += prepend+"└─"+self.operand2.toString(prepend+"  ")
+    return string
+  def booleanCleanup(self,invert):
+    self.operand1 = self.operand1.booleanCleanup(invert)
+    self.operand2 = self.operand2.booleanCleanup(invert)
+    if invert:
+      logical_inverses = {"or":"and","and":"or","==":"!=","!=":"=="}
+      self.operator = logical_inverses[self.operator]
+    return self
+  def toCFG(self,block,name):
+    operand1_name = block.addBool()
+    block = self.operand1.toCFG(block,operand1_name)
+    block.addQuadruplet(['mov',name,operand1_name,None])
+    block.addQuadruplet(['test',name,None,None])
+    right_block,next_block = block.logicalBlocks(self.operator)
+    operand2_name = right_block.addBool()
+    right_block = self.operand2.toCFG(right_block,operand2_name)
+    right_block.addQuadruplet(['mov',name,operand2_name,None])
+    return next_block
 
 class ASTBinaryOperator:
   def __init__(self,operator,operand1,operand2):
     self.operator = operator
     self.operand1 = operand1
     self.operand2 = operand2
-  def toString(self,prepend):
-    string = "{}\t\tid:{},label:{}\n".format(self.operator,self.id,self.label)
-    string += prepend+"├─"+self.operand1.toString(prepend+"│ ")
-    string += prepend+"└─"+self.operand2.toString(prepend+"  ")
-    return string
-  def getType(self,environment):
-    type1 = self.operand1.getType(environment)
-    type2 = self.operand2.getType(environment)
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.environment = environment
+    self.operand1.setEnvironment(environment)
+    self.operand2.setEnvironment(environment)
+  def checkType(self):
+    self.operand1,type1 = self.operand1.checkType()
+    self.operand2,type2 = self.operand2.checkType()
     if self.operator in ["+","-","*","//","%"]:
       assert type1=="int","Expression ("+str(self.operand1)+") should be int"
       assert type2=="int","Expression ("+str(self.operand2)+") should be int"
-      return "int"
-    if self.operator in ["<",">","<=",">="]:
+      new =  ASTIntegerOperator(self.operator,self.operand1,self.operand2)
+      type = "int"
+    elif self.operator in ["<",">","<=",">="]:
       assert type1=="int","Expression ("+str(self.operand1)+") should be int"
       assert type2=="int","Expression ("+str(self.operand2)+") should be int"
-      return "bool"
-    if self.operator in ["==","!="]:
+      new = ASTIntegerComparator(self.operator,self.operand1,self.operand2)
+      type = "bool"
+    elif self.operator in ["==","!="]:
       assert type1==type2,"Expressions ("+str(self.operand1)+") and ("+str(self.operand2)+") should be of same type"
-      return "bool"
-    assert type1=="bool", "Expression ("+str(self.operand1)+") should be bool"
-    assert type2=="bool", "Expression ("+str(self.operand2)+") should be bool"
-    return "bool"
-  def setId(self,environment):
-    self.label = 'op_'+str(environment.increaseLabelCounter())
-    self.id = 'tmp_'+str(environment.increaseTmpCounter())
-    self.operand1.setId(environment)
-    self.operand2.setId(environment)
-  def compile(self):
-    if self.operator in ["+","-","*","//","%","<",">","<=",">=","==","!="]:
-      # both operands must be evaluated
-      string = self.operand1.compile()
-      string += self.operand2.compile()
-      string += "  LDR R1, ={}\n  LDR R1, [R1]\n".format(self.operand1.id)
-      string += "  LDR R2, ={}\n  LDR R2, [R2]\n".format(self.operand2.id)
-      if self.operator=="+":
-        string += "  ADD R0, R1, R2\n"
-      elif self.operator=="-":
-        string += "  SUB R0, R1, R2\n"
-      elif self.operator=="*":
-        string += arm_fast_multiplication_template.format(label=self.label)
-      elif self.operator in ["//","%"]:
-        string += arm_fast_division_template.format(label=self.label)
-        if self.operator=="%":
-          string += "  MOV R0, R1\n"
-      elif self.operator=="==":
-        string += "  MOV R0, #1\n  CMP R1, R2\n  BEQ .{}_true\n  MOV R0, #0\n.{}_true:\n".format(self.label,self.label)
-      elif self.operator=="!=":
-        string += "  MOV R0, #0\n  CMP R1, R2\n  BEQ .{}_false\n  MOV R0, #1\n.{}_false:\n".format(self.label,self.label)
-      elif self.operator=="<":
-        string += "  MOV R0, #1\n  CMP R1, R2\n  BMI .{}_true\n  MOV R0, #0\n.{}_true:\n".format(self.label,self.label)
-      elif self.operator==">":
-        string += "  MOV R0, #1\n  CMP R2, R1\n  BMI .{}_true\n  MOV R0, #0\n.{}_true:\n".format(self.label,self.label)
-      elif self.operator=="<=":
-        string += "  MOV R0, #1\n  CMP R2, R1\n  BPL .{}_true\n  MOV R0, #0\n.{}_true:\n".format(self.label,self.label)
-      elif self.operator==">=":
-        string += "  MOV R0, #1\n  CMP R1, R2\n  BPL .{}_true\n  MOV R0, #0\n.{}_true:\n".format(self.label,self.label)
-      else:
-        assert False, "unknown operator "+self.operator
-    elif self.operator in ["and","or"]:
-      # first operand must be evaluated
-      string = self.operand1.compile()
-      string += "  LDR R0, ={}\n  LDR R0, [R0]\n".format(self.operand1.id)
-      if self.operator=="and":
-        string += "  CMP R0, #0\n  BEQ .onlyone_{}\n".format(self.label)
-      else:
-        string += "  CMP R0, #1\n  BEQ .onlyone_{}\n".format(self.label)
-      string += self.operand2.compile()
-      string += "  LDR R0, ={}\n  LDR R0, [R0]\n".format(self.operand2.id)
-      string += ".onlyone_{}:\n".format(self.label)
-    else:
-      assert False, "unknown operator "+self.operator
-    string += "  LDR R3, ={}\n  STR R0, [R3]\n".format(self.id)
-    return string
-
-class ASTBooleanNot:
-  def __init__(self,operand):
-    self.operand = operand
-  def toString(self,prepend):
-    string = "not\t\tid:{}\n".format(self.id)
-    string += prepend+"└─"+self.operand.toString(prepend+"  ")
-    return string
-  def getType(self,environment):
-    type = self.operand.getType(environment)
-    assert type=="bool","Expression ("+str(self.operand)+") should be bool"
-    return "bool"
-  def setId(self,environment):
-    self.id = 'tmp_'+str(environment.increaseTmpCounter())
-    self.operand.setId(environment)
-  def compile(self):
-    string = self.operand.compile()
-    string += "  LDR R0, ={}\n  LDR R0, [R0]\n".format(self.operand.id)
-    string += "  MOV R1, #1\n  SUB R0, R1, R0\n"
-    string += "  LDR R1, ={}\n  STR R0, [R1]\n".format(self.id)
-    return string
+      new = ASTIntegerComparator(self.operator,self.operand1,self.operand2)
+      type = "bool"
+    else: # not,or
+      assert type1=="bool", "Expression ("+str(self.operand1)+") should be bool"
+      assert type2=="bool", "Expression ("+str(self.operand2)+") should be bool"
+      new = ASTLogicalOperator(self.operator,self.operand1,self.operand2)
+      type = "bool"
+    new.setEnvironment(self.environment)
+    return new,type
 
 class ASTNop:
   def __init__(self):
-    pass
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.environment = environment
   def toString(self,prepend):
     return "Nop\n"
-  def checkType(self,environment):
+  def checkType(self):
     pass
-  def setId(self,environment):
-    pass
-  def compile(self):
-    return ""
+  def booleanCleanup(self):
+    return self
+  def toCFG(self,block):
+    return block
 
 class ASTAssignment:
   def __init__(self,name,expression):
     self.name = name
     self.expression = expression
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.expression.setEnvironment(environment)
+    self.environment = environment
   def toString(self,prepend):
     string = "Assignment\n"
-    string += prepend+"├i─{}\t\tid:{}\n".format(str(self.name),self.id)
+    string += prepend+"├i─{}\n".format(str(self.name))
     string += prepend+"└─"+self.expression.toString(prepend+"  ")
     return string
-  def checkType(self,environment):
-    expression_type = self.expression.getType(environment)
-    name_type = environment.getVariableType(self.name)
-    if name_type:
-      assert expression_type==name_type, "Wrong extression type "+expression_type+" for variable "+self.name
+  def checkType(self):
+    self.expression,expression_type = self.expression.checkType()
+    answer = self.environment.getVariableType(self.name)
+    if answer:
+      id,name_type = answer
+      assert expression_type==name_type, "Wrong extression type {} for {} variable {}".format(expression_type,variable_type,self.name)
     else:
-      environment.setVariableType(self.name,expression_type)
-  def setId(self,environment):
-    self.id = 'var_'+self.name
-    environment.resetTmpCounter()
-    self.expression.setId(environment)
-  def compile(self):
-    string = self.expression.compile()
-    string += "  LDR R0, ={}\n  LDR R0, [R0]\n".format(self.expression.id)
-    string += "  LDR R1, ={}\n  STR R0, [R1]\n".format(self.id)
-    return string
+      self.environment.setVariableType(self.name,expression_type)
+  def booleanCleanup(self):
+    self.expression = self.expression.booleanCleanup(False)
+    return self
+  def toCFG(self,block):
+    environment_id,type = self.environment.getVariableType(self.name)
+    id = "var_{}_{}".format(environment_id,self.name)
+    return self.expression.toCFG(block,id)
 
 class ASTPrint:
   def __init__(self,expression):
     self.expression = expression
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.expression.setEnvironment(environment)
+    self.environment = environment
   def toString(self,prepend):
     string = "Print\n"
     string += prepend+"└─"+self.expression.toString(prepend+"  ")
     return string
-  def checkType(self,environment):
-    self.type = self.expression.getType(environment)
-  def setId(self,environment):
-    environment.resetTmpCounter()
-    self.expression.setId(environment)
-  def compile(self):
-    string = self.expression.compile()
-    string += "  LDR R0, ={}\n  LDR R0, [R0]\n  BL .print{}\n".format(self.expression.id,self.type)
-    return string
+  def checkType(self):
+    self.expression,self.type = self.expression.checkType()
+  def booleanCleanup(self):
+    self.expression.booleanCleanup(False)
+    return self
+  def toCFG(self,block):
+    if self.type=="bool":
+      name = block.addBool()
+    else:
+      name = block.addTmp()
+    block = self.expression.toCFG(block,name)
+    block.addQuadruplet(['call','print'+self.type,name,None])
+    return block
 
 class ASTWhile:
   def __init__(self,condition,statement):
     self.condition = condition
     self.statement = statement
     self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.environment = environment
+    self.condition.setEnvironment(environment)
+    self.statement.setEnvironment(environment.fork())
   def toString(self,prepend):
-    string = "While\t\tlabel:{},localvars:{}\n".format(self.label,self.environment)
+    string = "While\n"
     string += prepend+"├c─"+self.condition.toString(prepend+"│  ")
     string += prepend+"└─"+self.statement.toString(prepend+"  ")
     return string
-  def checkType(self,environment):
-    type = self.condition.getType(environment)
+  def checkType(self):
+    self.condition,type = self.condition.checkType()
     assert type=="bool", "Condition ("+self.condition.toString("")+") should be bool"
-    self.environment = environment.fork()
-    self.statement.checkType(self.environment)
-    for name in self.environment.variables:
+    self.statement.checkType()
+    for name in self.statement.environment.variables:
       print("Warning : variable "+name+" is local to WHILE loop")
-  def setId(self,environment):
-    self.label = 'while_'+str(environment.increaseLabelCounter())
-    environment.resetTmpCounter()
-    self.condition.setId(environment)
-    self.statement.setId(self.environment)
-  def compile(self):
-    string = ".{}_condition:\n".format(self.label)
-    string += self.condition.compile()
-    string += "  LDR R0, ={}\n  LDR R0, [R0]\n".format(self.condition.id)
-    string += "  CMP R0, #0\n"
-    string += "  BEQ .{}_end\n".format(self.label)
-    string += self.statement.compile()
-    string += "  B .{}_condition\n".format(self.label)
-    string += ".{}_end:\n".format(self.label)
-    return string
+  def booleanCleanup(self):
+    self.condition = self.condition.booleanCleanup(False)
+    self.statement = self.statement.booleanCleanup()
+    return self
+  def toCFG(self,block):
+    condition_block,statement_block,next_block = block.whileBlocks()
+    name = condition_block.addBool()
+    condition_block = self.condition.toCFG(condition_block,name)
+    condition_block.addQuadruplet(['test',name,None,None])
+    self.statement.toCFG(statement_block)
+    return next_block
 
 class ASTBranch:
   def __init__(self,condition,if_statement,else_statement):
     self.condition = condition
     self.if_statement = if_statement
     self.else_statement = else_statement
-    self.if_environment = None
-    self.else_environment = None
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.environment = environment
+    self.condition.setEnvironment(environment)
+    self.if_statement.setEnvironment(environment.fork())
+    self.else_statement.setEnvironment(environment.fork())
   def toString(self,prepend):
-    string = "Branch\t\tlabel:{},localvars:{},{}\n".format(self.label,self.if_environment,self.else_environment)
+    string = "Branch\n"
     string += prepend+"├c─"+self.condition.toString(prepend+"│  ")
     string += prepend+"├i─"+self.if_statement.toString(prepend+"│  ")
     string += prepend+"└e─"+self.else_statement.toString(prepend+"   ")
     return string
-  def checkType(self,environment):
-    type = self.condition.getType(environment)
-    assert type=="bool", "Condition ("+str(self.condition)+") should be bool"
-    self.if_environment = environment.fork()
-    self.if_statement.checkType(self.if_environment)
-    self.else_environment = environment.fork()
-    self.else_statement.checkType(self.else_environment)
-    self.if_environment.merge(self.else_environment)
-  def setId(self,environment):
-    self.label = 'branch_'+str(environment.increaseLabelCounter())
-    environment.resetTmpCounter()
-    self.condition.setId(environment)
-    self.if_statement.setId(self.if_environment)
-    self.else_statement.setId(self.else_environment)
-  def compile(self):
-    string = self.condition.compile()
-    string += "  LDR R0, ={}\n  LDR R0, [R0]\n".format(self.condition.id)
-    string += "  CMP R0, #0\n"
-    string += "  BEQ .{}_else\n".format(self.label)
-    string += self.if_statement.compile()
-    string += "  B .{}_end\n".format(self.label)
-    string += ".{}_else:\n".format(self.label)
-    string += self.else_statement.compile()
-    string += ".{}_end:\n".format(self.label)
-    return string
+  def checkType(self):
+    self.condition,type = self.condition.checkType()
+    assert type=="bool", "Condition should be bool"
+    self.if_statement.checkType()
+    self.else_statement.checkType()
+    self.if_statement.environment.merge(self.else_statement.environment)
+  def booleanCleanup(self):
+    self.condition = self.condition.booleanCleanup(False)
+    self.if_statement = self.if_statement.booleanCleanup()
+    self.else_statement = self.else_statement.booleanCleanup()
+    return self
+  def toCFG(self,block):
+    if_block,else_block,next_block = block.branchBlocks()
+    name = block.addBool()
+    block = self.condition.toCFG(block,name)
+    block.addQuadruplet(['test',name,None,None])
+    self.if_statement.toCFG(if_block)
+    self.else_statement.toCFG(else_block)
+    return next_block
 
 class ASTSequence:
   def __init__(self,statement1,statement2):
     self.statement1 = statement1
     self.statement2 = statement2
+    self.environment = None
+  def __repr__(self):
+    return self.toString("")
+  def setEnvironment(self,environment):
+    self.environment = environment
+    self.statement1.setEnvironment(environment)
+    self.statement2.setEnvironment(environment)
   def toString(self,prepend):
     string = "Sequence\n"
     prepend = prepend[:-2]
@@ -367,37 +438,42 @@ class ASTSequence:
     string += prepend+"├─"+self.statement1.toString(prepend+"│ ")
     string += prepend+"└─"+self.statement2.toString(prepend+"  ")
     return string
-  def checkType(self,environment):
-    self.statement1.checkType(environment)
-    self.statement2.checkType(environment)
-  def setId(self,environment):
-    self.statement1.setId(environment)
-    self.statement2.setId(environment)
-  def compile(self):
-    string = self.statement1.compile()
-    string += self.statement2.compile()
-    return string
+  def checkType(self):
+    self.statement1.checkType()
+    self.statement2.checkType()
+  def booleanCleanup(self):
+    self.statement1 = self.statement1.booleanCleanup()
+    self.statement2 = self.statement2.booleanCleanup()
+    return self
+  def toCFG(self,block):
+    block = self.statement1.toCFG(block)
+    block = self.statement2.toCFG(block)
+    return block
 
 class ASTRoot:
   def __init__(self,root):
     self.root = root
+    self.root.setEnvironment(ASTEnvironment())
     self.py_filename = "<unknown.py>"
     self.py_code = "<not given>"
-    self.environment = ASTEnvironment()
   def __repr__(self):
     return self.toString("")
   def process(self):
-    self.root.checkType(self.environment)
-    self.root.setId(self.environment)
-    arm_code = self.root.compile()
-    arm_data = self.environment.toArmData()
+    self.root.checkType()
+    self.root = self.root.booleanCleanup()
+    # print(self)
+    cfg = CFGRoot()
+    self.root.toCFG(cfg.addBlock())
+    arm_code = cfg.compile()
+    arm_data = cfg.toArmData()
     return simply_arm_template.format(filename=self.py_filename,
                                       source="// "+self.py_code.replace("\n","\n// "),
                                       ast=self.toString("// "),
+                                      cfg=cfg.toString("// "),
                                       arm_code=arm_code,
                                       arm_data=arm_data)
   def toString(self,prepend):
-    string = prepend+"Root\t\tlocalvars:{}\n".format(self.environment)
+    string = prepend+"Root\n"
     string += prepend+"└─"
     string += self.root.toString(prepend+"  ")
     return string
