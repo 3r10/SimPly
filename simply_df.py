@@ -51,6 +51,7 @@ class CFGEdges:
     self.predecessors = None
     self.immediate_dominators = None
     self.dominance_frontier = None
+    self.dominated_children = None
   def toString(self,prepend,contents=None):
     predecessors = self.getPredecessors()
     immediate_dominators = self.getImmediateDominators()
@@ -180,6 +181,17 @@ class CFGEdges:
             immediate_dominator.append(i_dominator)
         self.immediate_dominators.append(immediate_dominator)
     return self.immediate_dominators
+  def getDominatedChildren(self,node):
+    if not self.dominated_children:
+      immediate_dominators = self.getImmediateDominators()
+      children = []
+      for i in range(len(immediate_dominators)):
+        children.append([])
+      for i in range(len(immediate_dominators)):
+        if len(immediate_dominators[i])==1:
+          children[immediate_dominators[i][0]].append(i)
+      self.dominated_children = children
+    return self.dominated_children[node]
   def getDominanceFrontier(self):
     if not self.dominance_frontier:
       successors = self.successors
