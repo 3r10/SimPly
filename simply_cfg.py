@@ -5,6 +5,7 @@ class CFGPhi:
   def __init__(self,name):
     self.name = name
     self.version = 0
+    self.is_undefined = False
     self.selector = {}
     self.max_predecessor = -1
   def __repr__(self):
@@ -12,7 +13,7 @@ class CFGPhi:
   def setVersion(self,version):
     self.version = version
   def getFullName(self):
-    return "{}.{}".format(self.name,self.version)
+    return "{}_{}".format(self.name,self.version)
   def blockInsertedAt(self,index):
     for i in range(max_predecessor,index-1,-1):
       if i in self.selector:
@@ -28,7 +29,9 @@ class CFGPhi:
         self.selector[i-1] = self.selector[i]
         del self.selector[i]
   def addSelection(self,predecessor,version):
-    self.selector[predecessor] = "{}.{}".format(self.name,version)
+    if version==0:
+      self.is_undefined = True
+    self.selector[predecessor] = "{}_{}".format(self.name,version)
     self.max_predecessor = max(self.max_predecessor,predecessor)
   def replaceAlias(self,alias):
     for predecessor in self.selector:
@@ -55,16 +58,9 @@ class CFGBlock:
       for name in self.phis:
         string += str(self.phis[name])+"\n"
       string += "────────────\n"
-    quadruplets = self.getQuadCpy()
-    for quadruplet in quadruplets:
+    for quadruplet in self.quadruplets:
       string += "{}\n".format(quadruplet)
     return string[:-1]
-  def getQuadCpy(self):
-    if self.quadruplets_cpy==None:
-      self.quadruplets_cpy = []
-      for q in self.quadruplets:
-        self.quadruplets_cpy.append(q[:])
-    return self.quadruplets_cpy
   def blockInsertedAt(self,index):
     if self.index>=index:
       self.index += 1
@@ -92,20 +88,18 @@ class CFGBlock:
     assert self.quadruplets==[] or self.quadruplets[-1][0]!='test', "CFGBlock : test should be the last quadruplet"
     self.quadruplets.append(quadruplet)
   def popAlias(self):
-    quadruplets = self.getQuadCpy()
     i = 0
-    while i<len(quadruplets):
-      action,op0,op1,op2 = quadruplets[i]
+    while i<len(self.quadruplets):
+      action,op0,op1,op2 = self.quadruplets[i]
       if action=="mov":
-        del quadruplets[i]
+        del self.quadruplets[i]
         return [op0,op1]
       else:
         i += 1
   def replaceAlias(self,alias):
-    quadruplets = self.getQuadCpy()
     for name in self.phis:
       self.phis[name].replaceAlias(alias)
-    for quadruplet in quadruplets:
+    for quadruplet in self.quadruplets:
       action,op0,op1,op2 = quadruplet
       if action=='test':
         if op0==alias[0]:
@@ -116,20 +110,18 @@ class CFGBlock:
         if op2==alias[0]:
           quadruplet[3] = alias[1]
   def getAssignedVariables(self):
-    quadruplets = self.getQuadCpy()
     assigned = set()
     for key in self.phis:
       assigned.add(self.phis[key].getFullName())
-    for action,op0,op1,op2 in quadruplets:
+    for action,op0,op1,op2 in self.quadruplets:
       if action not in ['call','test']:
         assigned.add(op0)
     return assigned
   def getUsedVariables(self):
-    quadruplets = self.getQuadCpy()
     used = set()
     for name in self.phis:
       used = used.union(self.phis[name].getUsedVariables())
-    for quadruplet in quadruplets:
+    for quadruplet in self.quadruplets:
       action,op0,op1,op2 = quadruplet
       if action=='test':
         used.add(op0)
@@ -149,34 +141,60 @@ class CFGBlock:
       del self.phis[key]
   def addPhiFunction(self,name):
     self.phis[name] = CFGPhi(name)
-  def addPhiSelection(self,predecessor,name,version):
+  def addPhiSelection(self,name,predecessor,version):
     if name in self.phis:
       self.phis[name].addSelection(predecessor,version)
-  def renameVariable(self,name,version):
-    quadruplets = self.getQuadCpy()
-    new_name = "{}.{}".format(name,version)
+  def removeUndefinedPhiFunctions(self):
+    todelete = []
+    for key in self.phis:
+      if self.phis[key].is_undefined:
+        todelete.append(key)
+    for key in todelete:
+      del self.phis[key]
+  def renameVariable(self,name,def_version,use_version):
+    use_name = "{}_{}".format(name,use_version)
     if name in self.phis:
-      version += 1
-      new_name = "{}.{}".format(name,version)
-      self.phis[name].setVersion(version)
-    for quadruplet in quadruplets:
+      def_version += 1
+      self.phis[name].setVersion(def_version)
+      use_version = def_version
+      use_name = "{}_{}".format(name,use_version)
+    for quadruplet in self.quadruplets:
       action,op0,op1,op2 = quadruplet
       if action=='test':
         if op0==name:
-          quadruplet[1] = new_name
+          quadruplet[1] = use_name
       else:
         if op1==name:
-          quadruplet[2] = new_name
+          quadruplet[2] = use_name
         if op2==name:
-          quadruplet[3] = new_name
-
+          quadruplet[3] = use_name
       if action not in ['call','test'] and op0==name:
-        version += 1
-        new_name = "{}.{}".format(name,version)
-        quadruplet[1] = new_name
-    return version
-  def compile(self,successors):
-    string = ".block_{}:\n".format(self.index)
+        def_version += 1
+        use_version = def_version
+        use_name = "{}_{}".format(name,use_version)
+        quadruplet[1] = use_name
+    return def_version,use_version
+  def compile(self,successors,predecessors):
+    string = ""
+    for name in self.phis:
+      self.root.addArmData(self.phis[name].getFullName())
+    for pred in predecessors:
+      string += ".block_{}_to_{}:\n".format(pred,self.index)
+      i_register = 0
+      for name in self.phis:
+        assert i_register<10, "CFGBlock: max register number for phi functions"
+        string += "  LDR R10, ={}\n  LDR R{}, [R10]\n".format(
+          self.phis[name].selector[pred],
+          i_register)
+        i_register += 1
+      i_register = 0
+      for name in self.phis:
+        string += "  LDR R10, ={}\n  STR R{}, [R10]\n".format(
+          self.phis[name].getFullName(),
+          i_register)
+        i_register += 1
+      string += "  B .block_{}\n".format(self.index)
+    string += ".block_{}:\n".format(self.index)
     for i in range(len(self.quadruplets)):
       string += "  // {}\n".format(self.quadruplets[i])
       action,op0,op1,op2 = self.quadruplets[i]
@@ -190,7 +208,9 @@ class CFGBlock:
         string += "  MOV R0, R1\n"
         string += "  LDR R2, ={}\n  STR R0, [R2]\n".format(op0)
       elif action=='test':
-        string += "  CMP R0, #1\n  BEQ .block_{}\n  B .block_{}\n".format(successors[0],successors[1])
+        string += "  LDR R0, ={}\n  LDR R0, [R0]\n".format(op0)
+        string += "  CMP R0, #1\n  BEQ .block_{}_to_{}\n  B .block_{}_to_{}\n".format(
+          self.index,successors[0],self.index,successors[1])
       elif action in ["+","-","*","//","%","<",">","<=",">=","==","!="]:
         self.root.addArmData(op0)
         string += "  LDR R1, ={}\n  LDR R1, [R1]\n".format(op1)
@@ -226,7 +246,7 @@ class CFGBlock:
       else:
         assert False, "CFGBlock : Unknown action "+action
     if len(successors)==1:
-      string += "  B .block_{}\n".format(successors[0])
+      string += "  B .block_{}_to_{}\n".format(self.index,successors[0])
     elif len(successors)==0:
       string += "  B end\n"
     return string
@@ -306,16 +326,16 @@ class CFGRoot:
     del self.blocks[index]
     for block in self.blocks:
       block.blockDeletedAt(index)
-  def renameVariable(self,i_block,name,version):
-    # TODO : understand the proper renaming algorithm
-    # WRONG ALGORITHM!!!!!!!!!!!!!!!
-    version = self.blocks[i_block].renameVariable(name,version)
+  def renameVariable(self,name,i_block=0,def_version=1,use_version=0):
+    def_version,use_version = self.blocks[i_block].renameVariable(name,def_version,use_version)
     for i_successor in self.edges.successors[i_block]:
-      self.blocks[i_successor].addPhiSelection(i_block,name,version)
+      self.blocks[i_successor].addPhiSelection(name,i_block,use_version)
     for child in self.edges.getDominatedChildren(i_block):
-      version = self.renameVariable(child,name,version)
-    return version
-  def phiInsert(self):
+      # siblings use the same use_version
+      # but may increment def_version
+      def_version,dummy = self.renameVariable(name,child,def_version,use_version)
+    return def_version,use_version
+  def toSSA(self):
     assigned_set = set()
     assigned_per_block = []
     for block in self.blocks:
@@ -330,14 +350,20 @@ class CFGRoot:
       iterated_df = self.edges.nodesIteratedDF(set_of_blocks)
       for i in iterated_df:
         self.blocks[i].addPhiFunction(name)
-      self.renameVariable(0,name,0)
+      self.renameVariable(name)
+    # iterated_df is an over-approximation :
+    # the algorithm assumes an implicit definition of every variable
+    # some phis une undefined version (0)
+    # but undefined variables have been checked by AST
+    # so we may remove any phi with use of version 0
+    # TODO : verify theory!!!!
+    for block in self.blocks:
+      block.removeUndefinedPhiFunctions()
   def compile(self):
     # SSA-based optimizations : work in progress
-    # problem in variable renaming... work on reachingedf algorithm!!!!
-    # examples/factorial.py fails!!!!!!
-    optimize = False
+    optimize = True
     if optimize:
-      self.phiInsert()
+      self.toSSA()
       found = True
       while found:
         i = 0
@@ -368,7 +394,8 @@ class CFGRoot:
     for i in range(len(self.blocks)):
       block = self.blocks[i]
       successors = self.edges.successors[i]
-      string += block.compile(successors)
+      predecessors = self.edges.getPredecessors()[i]
+      string += block.compile(successors,predecessors)
     return string
   def addArmData(self,name,value=0):
     if name in self.names:
